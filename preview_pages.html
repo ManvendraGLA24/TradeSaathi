@@ -565,9 +565,13 @@ const SECTOR_TABLE=[
 const ssSym=r=>'<div class="symc"><span class="symi" style="background:'+r.color+'">'+r.sym.slice(0,2)+'</span><span class="symn"><b>'+r.sym+'</b><small>'+r.name+'</small></span></div>';
 
 function buildScoreChart(data){
- const W=700,pt=20,pb=300,pl=52,pr=W-12,vmax=0.9,vmin=-1.5,scale=(pb-pt)/(vmax-vmin);
- const yFor=v=>pt+(vmax-v)*scale, zeroY=yFor(0);
- let g='';[0.9,0.6,0.3,0,-0.3,-0.6,-0.9,-1.2,-1.5].forEach(t=>{const y=yFor(t);g+='<line x1="'+pl+'" y1="'+y.toFixed(1)+'" x2="'+pr+'" y2="'+y.toFixed(1)+'" stroke="rgba(255,255,255,.06)"/><text x="'+(pl-8)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end" font-size="11" fill="#828ba3">'+t.toFixed(1)+'</text>';});
+ const W=700,pt=20,pb=300,pl=52,pr=W-12;
+ const vals=data.map(d=>d[1]);
+ let vmax=Math.max(0.3,...vals),vmin=Math.min(-0.3,...vals);
+ vmax=Math.ceil(vmax/0.3)*0.3; vmin=Math.floor(vmin/0.3)*0.3;
+ const scale=(pb-pt)/(vmax-vmin),yFor=v=>pt+(vmax-v)*scale,zeroY=yFor(0);
+ const ticks=[],stepT=(vmax-vmin)/8; for(let i=0;i<=8;i++)ticks.push(+(vmax-stepT*i).toFixed(2));
+ let g='';ticks.forEach(t=>{const y=yFor(t);g+='<line x1="'+pl+'" y1="'+y.toFixed(1)+'" x2="'+pr+'" y2="'+y.toFixed(1)+'" stroke="rgba(255,255,255,.06)"/><text x="'+(pl-8)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end" font-size="11" fill="#828ba3">'+t.toFixed(2)+'</text>';});
  const n=data.length,step=(pr-pl)/n,bw=18;let bars='';
  data.forEach((d,i)=>{const s=d[1],cx=pl+step*i+step/2,x=cx-bw/2,vy=yFor(s),col=s>=0?'#19c784':'#ea3b45',y=Math.min(zeroY,vy),hh=Math.max(Math.abs(vy-zeroY),2);
   bars+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw+'" height="'+hh.toFixed(1)+'" rx="7" fill="'+col+'"/>';
@@ -576,19 +580,53 @@ function buildScoreChart(data){
  return '<svg viewBox="0 0 '+W+' 440" width="100%">'+g+bars+'</svg>';
 }
 
+/* Live: group the universe into sectors; mock when no backend. */
+const SECTOR_MAP={
+ 'NIFTY BANK':['HDFCBANK','ICICIBANK','SBIN','AXISBANK','KOTAKBANK'],
+ 'NIFTY IT':['TCS','INFY','WIPRO','HCLTECH'],
+ 'NIFTY AUTO':['MARUTI','EICHERMOT'],
+ 'NIFTY FMCG':['HINDUNILVR','ITC','BRITANNIA','ASIANPAINT'],
+ 'NIFTY METAL':['TATASTEEL','JSWSTEEL','HINDALCO','COALINDIA','HINDCOPPER'],
+ 'NIFTY PHARMA':['SUNPHARMA','DRREDDY','CIPLA','DIVISLAB','APOLLOHOSP'],
+ 'NIFTY ENERGY':['RELIANCE','ONGC','NTPC','POWERGRID'],
+ 'NIFTY FINSERVICE':['BAJFINANCE','BAJAJFINSV','HDFCBANK','ICICIBANK'],
+ 'NIFTY INFRA':['LT','ADANIPORTS','GRASIM','ADANIENT'],
+};
+let SS_LIVE=null;
+function liveSEC(){
+ return Object.entries(SECTOR_MAP).map(([name,syms])=>{
+  const tiles=syms.map(s=>{const d=SS_LIVE[s];return d?[s,d.pct??0,'']:null;}).filter(Boolean).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]));
+  tiles.forEach((t,i)=>{t[2]=i===0?'big':i<=2?'mid':'';});
+  return [name,tiles];
+ });
+}
+function liveScores(){
+ return Object.entries(SECTOR_MAP).map(([name,syms])=>{
+  const ps=syms.map(s=>SS_LIVE[s]&&SS_LIVE[s].pct).filter(v=>v!=null);
+  return [name,+(ps.length?ps.reduce((a,b)=>a+b,0)/ps.length:0).toFixed(2)];
+ }).sort((a,b)=>b[1]-a[1]);
+}
+function liveTable(sector){
+ return (SECTOR_MAP[sector]||[]).map(s=>{const d=SS_LIVE[s];return d?{sym:s,name:s,prec:d.ltp??0,pct:d.pct??0,rfac:d.rfac??0,sgn:'',color:mpColor(s)}:null;}).filter(Boolean).sort((a,b)=>b.rfac-a.rfac);
+}
+async function liveSectorScope(){
+ try{const r=await fetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;SS_LIVE={};j.data.forEach(d=>SS_LIVE[d.symbol]=d);renderSectorScope();}catch(e){}
+}
 let sstate={mode:'overview',sector:null};
 function renderSectorScope(){
  let h='';
+ const SEC_D=SS_LIVE?liveSEC():SEC, SCORES_D=SS_LIVE?liveScores():SECTOR_SCORES;
  if(sstate.mode==='overview'){
   h+='<div class="ssctrl"><span class="howto">How to use ▶</span><span class="live">LIVE</span></div>';
-  h+='<div class="imcard"><div class="scoreHd"><b>Daily sector score</b><span class="dot2"></span><span class="activeb">ACTIVE</span><span style="margin-left:auto"><span class="live">LIVE</span></span></div>'+buildScoreChart(SECTOR_SCORES)+'</div>';
-  h+='<div class="board">'+SEC.map(s=>'<div class="sector"><div class="sn" data-sec="'+s[0]+'">'+s[0]+'</div><div class="tiles">'+s[1].map(t=>'<div class="tile '+(t[2]||'')+'" style="background:'+heat(t[1])+'"><div class="tip">'+t[0]+'<small>% chg: '+(t[1]>=0?'+':'')+t[1].toFixed(2)+'</small></div>'+t[0]+'</div>').join('')+'</div></div>').join('')+'</div>';
+  h+='<div class="imcard"><div class="scoreHd"><b>Daily sector score</b><span class="dot2"></span><span class="activeb">ACTIVE</span><span style="margin-left:auto"><span class="live">LIVE</span></span></div>'+buildScoreChart(SCORES_D)+'</div>';
+  h+='<div class="board">'+SEC_D.map(s=>'<div class="sector"><div class="sn" data-sec="'+s[0]+'">'+s[0]+'</div><div class="tiles">'+s[1].map(t=>'<div class="tile '+(t[2]||'')+'" style="background:'+heat(t[1])+'"><div class="tip">'+t[0]+'<small>% chg: '+(t[1]>=0?'+':'')+t[1].toFixed(2)+'</small></div>'+t[0]+'</div>').join('')+'</div></div>').join('')+'</div>';
   document.getElementById('ssbody').innerHTML=h;
   document.querySelectorAll('#ssbody .sn').forEach(el=>el.onclick=()=>{sstate={mode:'detail',sector:el.dataset.sec};renderSectorScope();});
  }else{
-  const rows=[...SECTOR_TABLE].sort((a,b)=>b.rfac-a.rfac);
-  const down=SECTOR_TABLE.filter(s=>s.pct<0).length,up=SECTOR_TABLE.length-down;
-  const dp=down/SECTOR_TABLE.length*100,upp=100-dp;
+  const TBL=SS_LIVE?liveTable(sstate.sector):SECTOR_TABLE;
+  const rows=[...TBL].sort((a,b)=>b.rfac-a.rfac);
+  const down=TBL.filter(s=>s.pct<0).length,up=TBL.length-down;
+  const dp=TBL.length?down/TBL.length*100:0,upp=100-dp;
   h+='<button class="backb" id="ssback">← All sectors</button>';
   h+='<div class="mphero"><div class="ht"><h3>'+sstate.sector+' 💡</h3><div class="hm"><span class="howto">How to use ▶</span><span class="live">LIVE</span></div></div><div class="mpright"><div class="search">'+icoSearch+' Search symbol</div><div class="vtog"><button class="vtb on">'+icoList+'</button><button class="vtb">'+icoGrid+'</button></div></div></div>';
   h+='<div class="breadth"><div class="bbar"><span class="d" style="width:'+dp.toFixed(2)+'%"></span><span class="u" style="width:'+upp.toFixed(2)+'%"></span></div><div class="bleg"><span class="down">'+down+' stocks ('+dp.toFixed(2)+'% Down)</span><span class="up">'+up+' stocks ('+upp.toFixed(2)+'% Up)</span></div></div>';
@@ -599,6 +637,8 @@ function renderSectorScope(){
  }
 }
 renderSectorScope();
+liveSectorScope();
+setInterval(()=>{const el=document.getElementById('ss');if(el&&el.classList.contains('on'))liveSectorScope();},10000);
 
 /* ---- Insider Strategy scanners ---- */
 /* === DATA LAYER (mock). Replace INS_STOCKS with the live Angel One SmartAPI feed
