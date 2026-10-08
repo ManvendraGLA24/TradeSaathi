@@ -303,6 +303,15 @@
   .ocstat{background:var(--raise);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
   .ocstat .k{font-size:13px;font-weight:800;margin-bottom:8px}
   .ocstat .v{font-size:22px;font-weight:800;color:#fff}
+
+  /* market news */
+  .newsgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .newsitem{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;display:block;text-decoration:none}
+  .newsitem:hover{border-color:rgba(45,212,232,.35)}
+  .newsitem h5{margin:0 0 6px;font-size:14px;color:#fff;font-weight:700;line-height:1.35}
+  .newsitem p{margin:0 0 8px;font-size:12.5px;color:var(--muted);line-height:1.5}
+  .newsmeta{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);font-weight:600}
+  .newsdot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
 </style>
 </head>
 <body>
@@ -337,6 +346,8 @@
       </div>
       <div class="sect"><span class="d"></span> Core tools <small>Daily stack</small></div>
       <div class="grid" id="tools"></div>
+      <div class="sect" style="margin-top:24px"><span class="d"></span> Market News <small>Live · Economic Times</small></div>
+      <div class="newsgrid" id="news"></div>
     </section>
 
     <!-- MARKET PULSE -->
@@ -463,6 +474,17 @@ async function liveTicker(){
 }
 liveTicker();
 setInterval(()=>{const el=document.getElementById('home');if(el&&el.classList.contains('on'))liveTicker();},8000);
+
+/* Home market news -> /api/news (hidden if no backend). */
+async function liveNews(){
+ try{const r=await fetch('/api/news');if(!r.ok)return;const j=await r.json();if(!j||!j.data||!j.data.length)return;
+  const el=document.getElementById('news');if(!el)return;
+  const sc={positive:'#16c784',negative:'#ea3943',neutral:'#828ba3'};
+  el.innerHTML=j.data.slice(0,8).map(n=>'<a class="newsitem" href="'+(n.link||'#')+'" target="_blank" rel="noopener"><h5>'+n.title+'</h5>'+(n.summary?'<p>'+n.summary+'</p>':'')+'<div class="newsmeta"><span class="newsdot" style="background:'+(sc[n.sentiment]||sc.neutral)+'"></span>'+(n.source||'')+(n.time?' · '+n.time:'')+'</div></a>').join('');
+ }catch(e){}
+}
+liveNews();
+setInterval(()=>{const el=document.getElementById('home');if(el&&el.classList.contains('on'))liveNews();},120000);
 
 /* ---- Market Pulse scanners ---- */
 /* [symbol, company, pct, metric, iconColor, sgn] — metric reused as R.FAC/DIFF/T.O. */
@@ -1081,6 +1103,15 @@ function gauge(val){
 }
 const MONEYFLUX=[['ONGC',96],['TATASTEEL',90],['NTPC',86],['MARUTI',62],['HINDALCO',58],['COALINDIA',46],['JSWSTEEL',42],['SBILIFE',38],['ADANIENT',35],['AXISBANK',32],['INDUSIND',30],['BAJAJFINSV',27],['BPCL',25],['EICHERMOT',22],['UPL',20],['TATAMOTORS',18],['POWERGRID',16],['APOLLOHOSP',14],['BAJFINANCE',12]];
 const greenShade=(v,mx)=>'rgba(22,170,95,'+(0.35+v/mx*0.55).toFixed(2)+')';
+let OA_PCR=0.76, OA_SENT=0.82, OA_FLUX=null;
+async function liveOptionApex(){
+ try{
+  const [u,o]=await Promise.all([fetch('/api/universe'),fetch('/api/optionchain')]);
+  if(u.ok){const j=await u.json();if(j&&j.data){const rows=j.data.filter(d=>d.pct!=null);OA_SENT=rows.length?rows.filter(d=>d.pct>=0).length/rows.length:0.5;OA_FLUX=rows.map(d=>[d.symbol,Math.abs(d.pct),d.pct]).sort((a,b)=>b[1]-a[1]);}}
+  if(o.ok){const j=await o.json();if(j&&j.pcr!=null)OA_PCR=Math.max(0,Math.min(1,0.5+(j.pcr-1)*0.5));}
+  renderOptionApex();
+ }catch(e){}
+}
 function renderOptionApex(){
  let h='<div class="oafilters">';
  h+='<div class="sel"><span><span class="lbl">INDEX</span>Nifty50</span><span>▾</span></div>';
@@ -1088,13 +1119,17 @@ function renderOptionApex(){
  h+='<div class="sel"><span><span class="lbl">EXP</span>Sep-04 Expiry in 2 Days</span><span>▾</span></div>';
  h+='<div class="sel"><span><span class="lbl">Chart Type:</span>🕯️</span></div></div>';
  h+='<div class="imcard">'+buildCandles()+'</div>';
- h+='<div class="imcard"><div class="gauges"><div class="gauge">'+gauge(0.82)+'<div class="gl">Sentimental Dial 💡</div></div><div class="gauge">'+gauge(0.76)+'<div class="gl">PCR Dial 💡</div></div></div>';
+ h+='<div class="imcard"><div class="gauges"><div class="gauge">'+gauge(OA_SENT)+'<div class="gl">Sentimental Dial 💡</div></div><div class="gauge">'+gauge(OA_PCR)+'<div class="gl">PCR Dial 💡</div></div></div>';
  h+='<div class="mfxtitle">Money Flux 💡</div>';
- const rows=[...MONEYFLUX].sort((a,b)=>b[1]-a[1]),mx=rows[0][1];
- h+='<div class="heatwrap">'+rows.map((r,i)=>'<div class="htile'+(i<3?' big':'')+'" style="background:'+greenShade(r[1],mx)+'">'+r[0]+'</div>').join('')+'</div></div>';
+ const flux=OA_FLUX||MONEYFLUX.map(r=>[r[0],r[1],1]);
+ const rows=[...flux].sort((a,b)=>b[1]-a[1]).slice(0,19),mx=rows[0]?rows[0][1]:1;
+ const fluxCol=(abs,pct)=>{const a=(0.35+abs/mx*0.55).toFixed(2);return pct>=0?'rgba(22,170,95,'+a+')':'rgba(220,70,70,'+a+')';};
+ h+='<div class="heatwrap">'+rows.map((r,i)=>'<div class="htile'+(i<3?' big':'')+'" style="background:'+fluxCol(r[1],r[2])+'">'+r[0]+'</div>').join('')+'</div></div>';
  document.getElementById('oabody').innerHTML=h;
 }
 renderOptionApex();
+liveOptionApex();
+setInterval(()=>{const el=document.getElementById('optionapex');if(el&&el.classList.contains('on'))liveOptionApex();},20000);
 
 /* ---- Option Clock ---- */
 /* === DATA LAYER (mock, k = thousands). Replace OI_STRIKES with live Angel One
@@ -1107,24 +1142,26 @@ const OI_STRIKES=[ /* [strike, bulls(Put OI chg) k, bears(Call OI chg) k] */
  [19250,117,23],[19200,175,24],[19150,38,5],[19100,76,9],[19050,37,10],[19000,93,8],
  [18950,58,6],[18900,76,7],[18850,32,5],
 ];
-function buildOIClock(){
- const pt=16,pb=476,x0=58,xe=662,xmax=240,sc=(xe-x0)/xmax,n=OI_STRIKES.length,rowH=(pb-pt)/n;
+const fmtOI=n=>{n=+n||0;return n>=1e7?(n/1e7).toFixed(1)+'Cr':n>=1e5?(n/1e5).toFixed(1)+'L':n>=1000?(n/1000).toFixed(0)+'k':String(Math.round(n));};
+const niceCeil=v=>{if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const f=v/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p;};
+function buildOIClock(strikes,atm){
+ const pt=16,pb=476,x0=58,xe=662,n=strikes.length,rowH=(pb-pt)/n;
+ const xmax=niceCeil(Math.max(1,...strikes.map(r=>Math.max(r[1],r[2])))),sc=(xe-x0)/xmax;
  let s='';
- [0,50,100,150,200,240].forEach(t=>{const x=x0+t*sc;s+='<line x1="'+x.toFixed(1)+'" y1="'+pt+'" x2="'+x.toFixed(1)+'" y2="'+pb+'" stroke="rgba(255,255,255,.05)"/><text x="'+x.toFixed(1)+'" y="'+(pb+15)+'" text-anchor="middle" font-size="10" fill="#828ba3">'+(t===0?'0':t+'k')+'</text>';});
- s+='<text x="14" y="'+(pb+15)+'" font-size="10" fill="#828ba3">-14k</text>';
- OI_STRIKES.forEach((r,i)=>{const stk=r[0],bull=r[1],bear=r[2],ry=pt+i*rowH,mid=ry+rowH/2,bh=7;
-  s+='<text x="'+(x0-8)+'" y="'+(mid+3).toFixed(1)+'" text-anchor="end" font-size="10.5" fill="#9aa3b5" font-weight="600">'+stk+'</text>';
+ for(let k=0;k<=5;k++){const t=xmax*k/5,x=x0+t*sc;s+='<line x1="'+x.toFixed(1)+'" y1="'+pt+'" x2="'+x.toFixed(1)+'" y2="'+pb+'" stroke="rgba(255,255,255,.05)"/><text x="'+x.toFixed(1)+'" y="'+(pb+15)+'" text-anchor="middle" font-size="10" fill="#828ba3">'+(t===0?'0':fmtOI(t))+'</text>';}
+ strikes.forEach((r,i)=>{const stk=r[0],bull=r[1],bear=r[2],ry=pt+i*rowH,mid=ry+rowH/2,bh=Math.min(7,rowH/2-1);
+  s+='<text x="'+(x0-8)+'" y="'+(mid+3).toFixed(1)+'" text-anchor="end" font-size="10" fill="#9aa3b5" font-weight="600">'+stk+'</text>';
   const by=mid-bh-0.5,gy=mid+0.5,bw=bear*sc,gw=bull*sc;
-  s+='<rect x="'+x0+'" y="'+by.toFixed(1)+'" width="'+Math.max(bw,1).toFixed(1)+'" height="'+bh+'" rx="2" fill="#f0706e"/><text x="'+(x0+bw+4).toFixed(1)+'" y="'+(by+6).toFixed(1)+'" font-size="9.5" fill="#f1a8a6" font-weight="700">'+bear+'k</text>';
-  s+='<rect x="'+x0+'" y="'+gy.toFixed(1)+'" width="'+Math.max(gw,1).toFixed(1)+'" height="'+bh+'" rx="2" fill="#4ecb8f"/><text x="'+(x0+gw+4).toFixed(1)+'" y="'+(gy+6).toFixed(1)+'" font-size="9.5" fill="#92e0b7" font-weight="700">'+bull+'k</text>';});
- const atmI=OI_STRIKES.findIndex(r=>r[0]===OI_ATM),ay=pt+atmI*rowH+rowH/2;
- s+='<line x1="'+x0+'" y1="'+ay.toFixed(1)+'" x2="'+xe+'" y2="'+ay.toFixed(1)+'" stroke="#6b7488" stroke-dasharray="4 4"/><text x="'+(xe+3)+'" y="'+(ay+3).toFixed(1)+'" font-size="10" fill="#9aa3b5" font-weight="700">ATM</text>';
+  s+='<rect x="'+x0+'" y="'+by.toFixed(1)+'" width="'+Math.max(bw,1).toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2" fill="#f0706e"/><text x="'+(x0+bw+4).toFixed(1)+'" y="'+(by+bh).toFixed(1)+'" font-size="9" fill="#f1a8a6" font-weight="700">'+fmtOI(bear)+'</text>';
+  s+='<rect x="'+x0+'" y="'+gy.toFixed(1)+'" width="'+Math.max(gw,1).toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2" fill="#4ecb8f"/><text x="'+(x0+gw+4).toFixed(1)+'" y="'+(gy+bh).toFixed(1)+'" font-size="9" fill="#92e0b7" font-weight="700">'+fmtOI(bull)+'</text>';});
+ const atmI=strikes.findIndex(r=>r[0]===atm),ay=atmI>=0?pt+atmI*rowH+rowH/2:pt;
+ if(atmI>=0)s+='<line x1="'+x0+'" y1="'+ay.toFixed(1)+'" x2="'+xe+'" y2="'+ay.toFixed(1)+'" stroke="#6b7488" stroke-dasharray="4 4"/><text x="'+(xe+3)+'" y="'+(ay+3).toFixed(1)+'" font-size="10" fill="#9aa3b5" font-weight="700">ATM</text>';
  return '<svg viewBox="0 0 706 496" width="100%">'+s+'</svg>';
 }
 function buildNetPos(bulls,bears){
- const W=680,pt=16,pb=250,pl=78,pr=W-10,vmax=1400000,yFor=v=>pt+(1-v/vmax)*(pb-pt),zy=yFor(0);
+ const W=680,pt=16,pb=250,pl=78,pr=W-10,vmax=niceCeil(Math.max(1,bulls,bears)),yFor=v=>pt+(1-v/vmax)*(pb-pt),zy=yFor(0);
  let s='';
- [0,200000,400000,600000,800000,1000000,1200000,1400000].forEach(t=>{const y=yFor(t);s+='<line x1="'+pl+'" y1="'+y.toFixed(1)+'" x2="'+pr+'" y2="'+y.toFixed(1)+'" stroke="rgba(255,255,255,.05)"/><text x="'+(pl-8)+'" y="'+(y+3).toFixed(1)+'" text-anchor="end" font-size="10" fill="#828ba3">'+t.toLocaleString("en-IN")+'</text>';});
+ for(let k=0;k<=7;k++){const t=vmax*k/7,y=yFor(t);s+='<line x1="'+pl+'" y1="'+y.toFixed(1)+'" x2="'+pr+'" y2="'+y.toFixed(1)+'" stroke="rgba(255,255,255,.05)"/><text x="'+(pl-8)+'" y="'+(y+3).toFixed(1)+'" text-anchor="end" font-size="10" fill="#828ba3">'+fmtOI(t)+'</text>';}
  const bw=70,c1=pl+(pr-pl)*0.3,c2=pl+(pr-pl)*0.68,y1=yFor(bulls),y2=yFor(bears);
  s+='<rect x="'+(c1-bw/2)+'" y="'+y1.toFixed(1)+'" width="'+bw+'" height="'+(zy-y1).toFixed(1)+'" rx="4" fill="#4ecb8f"/><text x="'+c1+'" y="'+(zy+17)+'" text-anchor="middle" font-size="12" fill="#9aa3b5" font-weight="700">Bulls Chg</text>';
  s+='<rect x="'+(c2-bw/2)+'" y="'+y2.toFixed(1)+'" width="'+bw+'" height="'+(zy-y2).toFixed(1)+'" rx="4" fill="#f0706e"/><text x="'+c2+'" y="'+(zy+17)+'" text-anchor="middle" font-size="12" fill="#9aa3b5" font-weight="700">Bears Chg</text>';
@@ -1138,14 +1175,26 @@ function buildPCRDonut(bp,rp,pcr){
  s+='<text x="44" y="'+(cy+4)+'" text-anchor="end" font-size="12" fill="#cfd6e6" font-weight="700">'+rp.toFixed(2)+'%</text><text x="276" y="'+(cy+4)+'" font-size="12" fill="#cfd6e6" font-weight="700">'+bp.toFixed(2)+'%</text>';
  return '<svg viewBox="0 0 320 300" width="100%" style="max-width:360px">'+s+'</svg>';
 }
+let OC_LIVE=null;
+function ocData(){
+ if(OC_LIVE)return {strikes:OC_LIVE.strikes,atm:OC_LIVE.atm,bullsT:OC_LIVE.totPE,bearsT:OC_LIVE.totCE,expiry:OC_LIVE.expiry};
+ const strikes=OI_STRIKES.map(r=>[r[0],r[1]*1000,r[2]*1000]);
+ return {strikes,atm:OI_ATM,bullsT:strikes.reduce((a,r)=>a+r[1],0),bearsT:strikes.reduce((a,r)=>a+r[2],0),expiry:null};
+}
+async function liveOptionClock(){
+ try{const r=await fetch('/api/optionchain');if(!r.ok)return;const j=await r.json();if(!j||!j.strikes)return;
+  OC_LIVE={strikes:j.strikes.map(s=>[s.strike,s.peOI,s.ceOI]),atm:j.atm,totPE:j.totPE,totCE:j.totCE,expiry:j.expiry};
+  renderOptionClock();}catch(e){}
+}
 function renderOptionClock(){
- const bullsT=OI_STRIKES.reduce((a,r)=>a+r[1],0)*1000,bearsT=OI_STRIKES.reduce((a,r)=>a+r[2],0)*1000;
- const pcr=(bullsT/bearsT).toFixed(2),bp=bullsT/(bullsT+bearsT)*100,rp=100-bp;
+ const d=ocData(),bullsT=d.bullsT,bearsT=d.bearsT;
+ const pcr=bearsT?(bullsT/bearsT).toFixed(2):'0.00',bp=(bullsT+bearsT)?bullsT/(bullsT+bearsT)*100:50,rp=100-bp;
+ const expLabel=d.expiry?d.expiry:'Oct-10 (Exp Tomorrow)';
  let h='<div class="occtrl"><div class="sel" style="flex:0 0 auto"><span><span class="lbl">INDEX</span>Nifty50</span><span>▾</span></div>';
- h+='<div class="sel" style="flex:0 0 auto"><span><span class="lbl">EXP</span>Oct-10 (Exp Tomorrow)</span><span>▾</span></div>';
+ h+='<div class="sel" style="flex:0 0 auto"><span><span class="lbl">EXP</span>'+expLabel+'</span><span>▾</span></div>';
  h+='<div class="ocslider"><span class="octime">09:15</span><div class="octrack"><div class="fill"></div><div class="h" style="left:6%"></div><div class="h" style="left:94%"></div></div><span class="octime">15:30</span></div>';
  h+='<button class="ocgo">Go</button></div>';
- h+='<div class="imcard"><div class="ochd"><b>OI Clock</b> 💡 <span class="ocatm">ATM 19,350</span><span class="oclegend"><span class="b"><i style="background:#f0706e"></i>Bears</span><span class="b"><i style="background:#4ecb8f"></i>Bulls</span></span></div>'+buildOIClock()+'</div>';
+ h+='<div class="imcard"><div class="ochd"><b>OI Clock</b> 💡 <span class="ocatm">ATM '+d.atm.toLocaleString("en-IN")+'</span><span class="oclegend"><span class="b"><i style="background:#f0706e"></i>Bears</span><span class="b"><i style="background:#4ecb8f"></i>Bulls</span></span></div>'+buildOIClock(d.strikes,d.atm)+'</div>';
  h+='<div class="imcard"><div class="fihd"><b>Net Position</b> <span style="color:var(--muted);font-size:12px;font-weight:700">&#916; OI</span></div>'+buildNetPos(bullsT,bearsT)+'</div>';
  h+='<div class="imcard"><div class="fihd"><b>Distribution</b> <span style="color:var(--muted);font-size:12px;font-weight:700">TOTAL OI</span></div>';
  h+='<div class="ocdlegend"><span><i style="background:#4ecb8f"></i>Bulls Total OI</span><span><i style="background:#f0706e"></i>Bears Total OI</span></div>';
@@ -1154,6 +1203,8 @@ function renderOptionClock(){
  document.getElementById('ocbody').innerHTML=h;
 }
 renderOptionClock();
+liveOptionClock();
+setInterval(()=>{const el=document.getElementById('optionclock');if(el&&el.classList.contains('on'))liveOptionClock();},20000);
 
 /* ---- Calculator ---- */
 const CINR=n=>'₹'+(isFinite(n)?Math.round(n):0).toLocaleString('en-IN');

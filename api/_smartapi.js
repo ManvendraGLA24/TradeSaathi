@@ -135,6 +135,7 @@ export async function quoteTokens(exchange, items) {
     return {
       symbol: i.symbol, ltp: f.ltp ?? null, open: f.open ?? null, high: f.high ?? null, low: f.low ?? null, close: f.close ?? null,
       pct: f.percentChange ?? null, change: f.netChange ?? null, volume: f.tradeVolume ?? null,
+      oi: f.opnInterest ?? f.openInterest ?? null,
     };
   });
 }
