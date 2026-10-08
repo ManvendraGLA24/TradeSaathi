@@ -37,13 +37,15 @@ function totp(secret) {
 // --- serialize + throttle every SmartAPI HTTP call (respects per-second limits) ---
 let lastAt = 0, mutex = Promise.resolve();
 const GAP = 450; // ms between calls
-async function rawPost(path, headers, body) {
+async function rawReq(method, path, headers, body) {
   const task = mutex.then(async () => {
     for (let i = 0; i < 4; i++) {
       const wait = Math.max(0, lastAt + GAP - Date.now());
       if (wait) await sleep(wait);
       lastAt = Date.now();
-      const res = await fetch(BASE + path, { method: 'POST', headers, body: JSON.stringify(body) });
+      const opts = { method, headers };
+      if (body !== undefined) opts.body = JSON.stringify(body);
+      const res = await fetch(BASE + path, opts);
       const text = await res.text();
       let j = null; try { j = JSON.parse(text); } catch { /* non-JSON below */ }
       if (j) return j;
@@ -55,6 +57,7 @@ async function rawPost(path, headers, body) {
   mutex = task.then(() => {}, () => {});
   return task;
 }
+const rawPost = (path, headers, body) => rawReq('POST', path, headers, body);
 
 let session = null; // { jwt, at }
 async function getSession() {
@@ -74,6 +77,38 @@ async function authed(path, body) {
     j = await rawPost(path, { ...baseHeaders(), Authorization: 'Bearer ' + s.jwt }, body);
   }
   return j;
+}
+async function authedGet(path) {
+  const s = await getSession();
+  return rawReq('GET', path, { ...baseHeaders(), Authorization: 'Bearer ' + s.jwt });
+}
+
+// Holdings + positions + today's trades, with a computed P&L summary (Trading Journal).
+export async function portfolio() {
+  const [H, P, T] = [
+    await authedGet('/rest/secure/angelbroking/portfolio/v1/getAllHolding'),
+    await authedGet('/rest/secure/angelbroking/order/v1/getPosition'),
+    await authedGet('/rest/secure/angelbroking/order/v1/getTradeBook'),
+  ];
+  const positions = Array.isArray(P?.data) ? P.data : [];
+  const trades = Array.isArray(T?.data) ? T.data : [];
+  const holdings = Array.isArray(H?.data) ? H.data : (H?.data?.holdings || []);
+  const n = (v) => (v == null || v === '' ? 0 : +v);
+  const pnls = positions.map((p) => n(p.pnl ?? p.realised) + 0);
+  const wins = pnls.filter((x) => x > 0), losses = pnls.filter((x) => x < 0);
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+  const totalPnl = sum(positions.map((p) => n(p.pnl))) + sum(holdings.map((h) => n(h.profitandloss)));
+  const stats = {
+    totalPnl: +totalPnl.toFixed(2),
+    totalTrades: trades.length,
+    biggestWin: wins.length ? +Math.max(...wins).toFixed(2) : 0,
+    biggestLoss: losses.length ? +Math.min(...losses).toFixed(2) : 0,
+    avgWinner: wins.length ? +(sum(wins) / wins.length).toFixed(2) : 0,
+    avgLoser: losses.length ? +(sum(losses) / losses.length).toFixed(2) : 0,
+    avgPnl: pnls.length ? +(sum(pnls) / pnls.length).toFixed(2) : 0,
+    riskReward: losses.length && wins.length ? +(Math.abs(sum(wins) / wins.length) / Math.abs(sum(losses) / losses.length)).toFixed(2) : 0,
+  };
+  return { stats, counts: { positions: positions.length, holdings: holdings.length, trades: trades.length } };
 }
 
 const tokenCache = new Map();

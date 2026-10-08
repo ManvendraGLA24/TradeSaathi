@@ -900,15 +900,22 @@ function renderJournal(){
  const filled=offset+daysIn,trail=(7-filled%7)%7;
  for(let i=0;i<trail;i++)cal+='<div class="calcell empty"></div>';
  cal+='</div>';
- // Statistics (— until trades load)
- const STATS=['Total P&L','Total Trades','Biggest Win','Biggest Loss','Avg. Winner','Avg. Loser','Risk to Reward','Avg. P&L'];
- const stats='<div class="statgrid">'+STATS.map(k=>'<div class="stat"><div class="k">'+k+' <span class="i">i</span></div><div class="v">—</div></div>').join('')+'</div>';
+ // Statistics — live from /api/portfolio when available, else —
+ const STAT_MAP={'Total P&L':'totalPnl','Total Trades':'totalTrades','Biggest Win':'biggestWin','Biggest Loss':'biggestLoss','Avg. Winner':'avgWinner','Avg. Loser':'avgLoser','Risk to Reward':'riskReward','Avg. P&L':'avgPnl'};
+ const jval=(label,v)=>{if(v==null)return '—';if(label==='Total Trades')return String(v);if(label==='Risk to Reward')return v?('1 : '+v):'—';return '₹'+(+v).toLocaleString('en-IN');};
+ const stats='<div class="statgrid">'+Object.keys(STAT_MAP).map(k=>{const v=JOURNAL_STATS?JOURNAL_STATS[STAT_MAP[k]]:null;const col=(/P&L|Win|Winner/.test(k)&&v>0)?'#16c784':(/Loss|Loser/.test(k)&&v<0)?'#ea3943':'#fff';return '<div class="stat"><div class="k">'+k+' <span class="i">i</span></div><div class="v" style="color:'+col+'">'+jval(k,v)+'</div></div>';}).join('')+'</div>';
  document.getElementById('jbody').innerHTML=
   '<div class="tjcard"><div class="tjtitle">Tradebook</div>'+tb+'</div>'+
   '<div class="tjcard"><div class="tjtitle">October 2026</div>'+cal+'</div>'+
   '<div class="tjcard"><div class="tjtitle">Statistics</div>'+stats+'</div>';
 }
+let JOURNAL_STATS=null;
+async function liveJournal(){
+ try{const r=await fetch('/api/portfolio');if(!r.ok)return;const j=await r.json();if(!j||!j.stats)return;JOURNAL_STATS=j.stats;renderJournal();}catch(e){}
+}
 renderJournal();
+liveJournal();
+setInterval(()=>{const el=document.getElementById('journal');if(el&&el.classList.contains('on'))liveJournal();},15000);
 
 /* ---- Watchlist ---- */
 /* === W1-W5 are saved lists; the bookmark icon across scanners adds any stock/option
