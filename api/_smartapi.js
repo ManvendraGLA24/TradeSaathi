@@ -140,6 +140,15 @@ export async function quoteTokens(exchange, items) {
   });
 }
 
+// Historical candles: [[ts, o, h, l, c, v], ...].
+export async function candles(exchange, token, interval = 'FIVE_MINUTE', days = 2) {
+  const pad = (x) => String(x).padStart(2, '0');
+  const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const to = new Date(), from = new Date(to.getTime() - days * 24 * 3600 * 1000);
+  const j = await authed('/rest/secure/angelbroking/historical/v1/getCandleData', { exchange, symboltoken: token, interval, fromdate: fmt(from), todate: fmt(to) });
+  return Array.isArray(j?.data) ? j.data : [];
+}
+
 // Live quote rows for symbols on an exchange (default NSE equity).
 export async function quoteFull(exchange, symbols) {
   const resolved = [];

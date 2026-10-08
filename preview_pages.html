@@ -1074,24 +1074,31 @@ setInterval(()=>{const el=document.getElementById('fiidii');if(el&&el.classList.
 /* === Chart candles, gauges and Money Flux all come live from Angel One option/
    index data. Mock/generated here; wire the feed and these fill in. === */
 function buildCandles(){
- const N=68,W=700,pt=24,pb=288,vt=306,vb=378;
- const o=[],c=[],hi=[],lo=[],vol=[];
- for(let i=0;i<N;i++){const trend=100+30*Math.sin(i*0.09-1.2)+16*(i/N);const cl=trend+(((i*53)%11)-5)*0.6;const op=i===0?trend-2:c[i-1];
-  o.push(op);c.push(cl);hi.push(Math.max(op,cl)+(((i*31)%5)*0.5+0.6));lo.push(Math.min(op,cl)-(((i*23)%5)*0.5+0.6));vol.push(20+((i*41)%45)+((i>33&&i<45)?45:0));}
- const mx=Math.max(...hi),mn=Math.min(...lo),rng=mx-mn||1,pl=8,pr=W-8,step=(pr-pl)/N,bw=Math.max(step*0.6,3);
- const yP=v=>pt+(mx-v)/rng*(pb-pt),mv=Math.max(...vol);
+ const W=700,pt=24,pb=288,vt=306,vb=378;
+ let o=[],c=[],hi=[],lo=[],vol=[],times=null;
+ if(OA_CANDLES&&OA_CANDLES.length){
+  const src=OA_CANDLES.slice(-80);
+  times=src.map(r=>new Date(r[0]));
+  o=src.map(r=>+r[1]);hi=src.map(r=>+r[2]);lo=src.map(r=>+r[3]);c=src.map(r=>+r[4]);vol=src.map(r=>+r[5]||0);
+ }else{
+  for(let i=0;i<68;i++){const trend=100+30*Math.sin(i*0.09-1.2)+16*(i/68);const cl=trend+(((i*53)%11)-5)*0.6;const op=i===0?trend-2:c[i-1];
+   o.push(op);c.push(cl);hi.push(Math.max(op,cl)+(((i*31)%5)*0.5+0.6));lo.push(Math.min(op,cl)-(((i*23)%5)*0.5+0.6));vol.push(20+((i*41)%45)+((i>33&&i<45)?45:0));}
+ }
+ const N=o.length,mx=Math.max(...hi),rng=(mx-Math.min(...lo))||1,pl=8,pr=W-8,step=(pr-pl)/N,bw=Math.max(step*0.6,2);
+ const yP=v=>pt+(mx-v)/rng*(pb-pt),mv=Math.max(1,...vol);
  let s='';
  for(let i=0;i<N;i++){const cx=pl+step*i+step/2,col=c[i]>=o[i]?'#16c784':'#ea3b45';
   s+='<line x1="'+cx.toFixed(1)+'" y1="'+yP(hi[i]).toFixed(1)+'" x2="'+cx.toFixed(1)+'" y2="'+yP(lo[i]).toFixed(1)+'" stroke="'+col+'" stroke-width="1"/>';
   const by=yP(Math.max(o[i],c[i])),bh=Math.max(Math.abs(yP(o[i])-yP(c[i])),1.5);
   s+='<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+by.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'" fill="'+col+'"/>';
-  const vh=vol[i]/mv*(vb-vt);
-  s+='<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+(vb-vh).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+vh.toFixed(1)+'" fill="'+col+'" opacity="0.45"/>';}
- const chx=pl+step*34+step/2,chy=yP(c[34]);
+  if(mv>1){const vh=vol[i]/mv*(vb-vt);s+='<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+(vb-vh).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+vh.toFixed(1)+'" fill="'+col+'" opacity="0.45"/>';}}
+ const chIdx=times?N-1:34,chx=pl+step*chIdx+step/2,chy=yP(c[chIdx]);
  s+='<line x1="'+chx.toFixed(1)+'" y1="'+pt+'" x2="'+chx.toFixed(1)+'" y2="'+vb+'" stroke="#5a6273" stroke-width="1" stroke-dasharray="4 4"/>';
  s+='<line x1="'+pl+'" y1="'+chy.toFixed(1)+'" x2="'+pr+'" y2="'+chy.toFixed(1)+'" stroke="#5a6273" stroke-width="1" stroke-dasharray="4 4"/>';
- s+='<rect x="'+(chx-96).toFixed(1)+'" y="386" width="192" height="22" rx="5" fill="#0c1220" stroke="rgba(255,255,255,.14)"/><text x="'+chx.toFixed(1)+'" y="401" text-anchor="middle" font-size="11" fill="#cfd6e6" font-weight="700">December 20, 2022 at 12:57 PM</text>';
- [['9:30 AM',0.02],['10:30 AM',0.2],['11:30 AM',0.38],['2:30 PM',0.75],['3:30 PM',0.97]].forEach(t=>{s+='<text x="'+(pl+(pr-pl)*t[1]).toFixed(1)+'" y="424" text-anchor="middle" font-size="10.5" fill="#9aa3b5">'+t[0]+'</text>';});
+ const ttl=times?times[chIdx].toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+' · '+c[chIdx].toFixed(2):'December 20, 2022 at 12:57 PM';
+ s+='<rect x="'+(chx-96).toFixed(1)+'" y="386" width="192" height="22" rx="5" fill="#0c1220" stroke="rgba(255,255,255,.14)"/><text x="'+chx.toFixed(1)+'" y="401" text-anchor="middle" font-size="11" fill="#cfd6e6" font-weight="700">'+ttl+'</text>';
+ if(times){[0,Math.floor(N*0.25),Math.floor(N*0.5),Math.floor(N*0.75),N-1].forEach(ix=>{s+='<text x="'+(pl+step*ix+step/2).toFixed(1)+'" y="424" text-anchor="middle" font-size="10" fill="#9aa3b5">'+times[ix].toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})+'</text>';});}
+ else{[['9:30 AM',0.02],['10:30 AM',0.2],['11:30 AM',0.38],['2:30 PM',0.75],['3:30 PM',0.97]].forEach(t=>{s+='<text x="'+(pl+(pr-pl)*t[1]).toFixed(1)+'" y="424" text-anchor="middle" font-size="10.5" fill="#9aa3b5">'+t[0]+'</text>';});}
  s+='<text x="350" y="446" text-anchor="middle" font-size="15" font-weight="800" fill="#4f8cff" opacity="0.85">TradeSaathi.in</text>';
  return '<svg viewBox="0 0 700 454" width="100%">'+s+'</svg>';
 }
@@ -1109,12 +1116,13 @@ function gauge(val){
 }
 const MONEYFLUX=[['ONGC',96],['TATASTEEL',90],['NTPC',86],['MARUTI',62],['HINDALCO',58],['COALINDIA',46],['JSWSTEEL',42],['SBILIFE',38],['ADANIENT',35],['AXISBANK',32],['INDUSIND',30],['BAJAJFINSV',27],['BPCL',25],['EICHERMOT',22],['UPL',20],['TATAMOTORS',18],['POWERGRID',16],['APOLLOHOSP',14],['BAJFINANCE',12]];
 const greenShade=(v,mx)=>'rgba(22,170,95,'+(0.35+v/mx*0.55).toFixed(2)+')';
-let OA_PCR=0.76, OA_SENT=0.82, OA_FLUX=null;
+let OA_PCR=0.76, OA_SENT=0.82, OA_FLUX=null, OA_CANDLES=null;
 async function liveOptionApex(){
  try{
-  const [u,o]=await Promise.all([fetch('/api/universe'),fetch('/api/optionchain')]);
+  const [u,o,cnd]=await Promise.all([fetch('/api/universe'),fetch('/api/optionchain'),fetch('/api/candles')]);
   if(u.ok){const j=await u.json();if(j&&j.data){const rows=j.data.filter(d=>d.pct!=null);OA_SENT=rows.length?rows.filter(d=>d.pct>=0).length/rows.length:0.5;OA_FLUX=rows.map(d=>[d.symbol,Math.abs(d.pct),d.pct]).sort((a,b)=>b[1]-a[1]);}}
   if(o.ok){const j=await o.json();if(j&&j.pcr!=null)OA_PCR=Math.max(0,Math.min(1,0.5+(j.pcr-1)*0.5));}
+  if(cnd.ok){const j=await cnd.json();if(j&&j.data&&j.data.length)OA_CANDLES=j.data;}
   renderOptionApex();
  }catch(e){}
 }
