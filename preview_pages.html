@@ -824,21 +824,45 @@ const WATCHLIST=[
 ];
 const icoTrash='<svg width="16" height="16" viewBox="0 0 24 24" stroke-width="1.8"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13h10l1-13"/></svg>';
 let wlActive='W1';
-function renderWatchlist(){
+/* Live quotes via the serverless API. Returns null when no backend (e.g. local
+   :5500) so callers fall back to mock data. Works live once deployed on Vercel. */
+async function apiQuotes(symbols, exchange){
+ exchange=exchange||'NSE';
+ try{
+  const r=await fetch('/api/quote?exchange='+exchange+'&symbols='+encodeURIComponent(symbols.join(',')));
+  if(!r.ok) return null;
+  const j=await r.json();
+  if(!j||!j.data) return null;
+  const m={}; j.data.forEach(d=>m[d.symbol]=d); return m;
+ }catch(e){ return null; }
+}
+function buildWatchlist(){
  const up=WATCHLIST.filter(w=>w.pct>=0).length,down=WATCHLIST.length-up;
  const upp=up/WATCHLIST.length*100,dp=100-upp;
  let h='<div class="wltabs">'+['W1','W2','W3','W4','W5'].map(t=>'<button class="wltab'+(t===wlActive?' on':'')+'" data-w="'+t+'">'+t+'</button>').join('')+'</div>';
  h+='<div class="breadth"><div class="bbar"><span class="u" style="width:'+upp.toFixed(2)+'%"></span><span class="d" style="width:'+dp.toFixed(2)+'%"></span></div><div class="bleg"><span class="up">● '+up+' Instruments ('+upp.toFixed(2)+'% Up)</span><span class="down">'+down+' Instruments ('+dp.toFixed(2)+'% Down) ●</span></div></div>';
  h+='<div class="wlcount">'+WATCHLIST.length+' Instruments</div>';
  const body=WATCHLIST.map(r=>{
-  const range=r.low!=null?'₹'+r.low.toFixed(2)+'<span class="cI">▾</span>₹'+r.high.toFixed(2):'₹'+r.high.toFixed(2);
-  return '<tr><td>'+insSym(r)+'</td><td class="c"><span class="wlrange">'+range+'</span></td><td class="c"><span class="wlchg">'+r.chg.toFixed(2)+'</span></td><td class="c">'+mpPill(r.pct)+'</td><td class="c"><span class="trash">'+icoTrash+'</span></td></tr>';
+  const range=r.low!=null?'₹'+(+r.low).toFixed(2)+'<span class="cI">▾</span>₹'+(+r.high).toFixed(2):'₹'+(+r.high).toFixed(2);
+  return '<tr><td>'+insSym(r)+'</td><td class="c"><span class="wlrange">'+range+'</span></td><td class="c"><span class="wlchg">'+(+r.chg).toFixed(2)+'</span></td><td class="c">'+mpPill(r.pct)+'</td><td class="c"><span class="trash">'+icoTrash+'</span></td></tr>';
  }).join('');
  h+='<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden"><table><thead><tr><th>INSTRUMENT</th><th class="c">TODAY\'S RANGE</th><th class="c">TODAY\'S CHANGE</th><th class="c">PERCENT CHG.</th><th class="c">ACTION</th></tr></thead><tbody>'+body+'</tbody></table></div>';
- document.getElementById('wlbody').innerHTML=h;
- document.querySelectorAll('#wlbody .wltab').forEach(b=>b.onclick=()=>{wlActive=b.dataset.w;renderWatchlist();});
+ return h;
+}
+function wireWatchlist(){ document.querySelectorAll('#wlbody .wltab').forEach(b=>b.onclick=()=>{wlActive=b.dataset.w;renderWatchlist();}); }
+async function liveWatchlist(){
+ const m=await apiQuotes(WATCHLIST.map(w=>w.sym));
+ if(!m) return; // no backend → keep mock
+ WATCHLIST.forEach(w=>{const d=m[w.sym]; if(d){ if(d.pct!=null)w.pct=d.pct; if(d.low!=null)w.low=d.low; if(d.high!=null)w.high=d.high; if(d.change!=null)w.chg=d.change; if(d.ltp!=null)w.ltp=d.ltp; }});
+ const el=document.getElementById('wlbody'); if(el){ el.innerHTML=buildWatchlist(); wireWatchlist(); }
+}
+function renderWatchlist(){
+ document.getElementById('wlbody').innerHTML=buildWatchlist();
+ wireWatchlist();
+ liveWatchlist();
 }
 renderWatchlist();
+setInterval(()=>{ const s=document.getElementById('watchlist'); if(s&&s.classList.contains('on')) liveWatchlist(); }, 8000);
 
 /* ---- FII / DII ---- */
 /* === DATA LAYER (mock). Replace with live Angel One / exchange FII-DII feed.
