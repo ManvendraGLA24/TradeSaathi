@@ -870,7 +870,7 @@ let SW_LIVE=null;
 async function liveSwing(){
  try{const r=await fetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;
   const now=new Date().toISOString().slice(0,10);
-  SW_LIVE=j.data.filter(d=>d.pct!=null).map(d=>({sym:d.symbol,name:d.symbol,val:d.pct,dt:now,color:mpColor(d.symbol)}));
+  SW_LIVE=j.data.filter(d=>d.pct!=null).map(d=>({sym:d.symbol,name:d.symbol,val:d.pct,vol:d.volume,dt:now,color:mpColor(d.symbol)}));
   renderSwing();}catch(e){}
 }
 function renderSwing(){
@@ -883,10 +883,16 @@ function renderSwing(){
   const rows=[...STOCKS].sort((a,b)=>Math.abs(b.val)-Math.abs(a.val)).slice(0,10);
   h+='<div class="heatwrap">'+rows.map((r,i)=>'<div class="htile'+(i<2?' big':'')+'" style="background:'+heat(r.val)+'"><div class="tip">'+r.sym+'<small>'+r.val.toFixed(2)+'</small></div>'+r.sym+'</div>').join('')+'</div>';
  }else if(s.layout==='delivery'){
-  h+='<div class="filters"><div class="sel"><span>% &nbsp; Highest Delivery</span><span>▾</span></div><div class="sel"><span>▦ &nbsp; F&O</span><span>▾</span></div></div>';
-  const body=DELIVERY_STOCKS.map(r=>'<tr><td>'+insSym(r)+'</td><td>'+mpActCell+'</td><td class="metric">'+r.vol+'</td><td class="metric">'+r.avg.toFixed(2)+'</td><td><div class="delcell"><span>'+r.del.toFixed(2)+'</span><span class="delbar"><span style="width:'+r.del+'%"></span></span></div></td></tr>').join('');
-  h+='<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden"><table><thead><tr><th>SYMBOL</th><th></th><th class="r">VOLUME</th><th class="r">AVG. DEL %</th><th class="r">DELIVERY % ▾</th></tr></thead><tbody>'+body+'</tbody></table></div>';
-  h+='<div style="text-align:right;color:var(--accent2);font-size:12px;font-weight:700;margin-top:10px">Wed Sep 02, 2026 IST</div>';
+  h+='<div class="filters"><div class="sel"><span>% &nbsp; Highest Volume</span><span>▾</span></div><div class="sel"><span>▦ &nbsp; F&O</span><span>▾</span></div></div>';
+  let body;
+  if(SW_LIVE){ // live volume real; delivery % is EOD-only (NSE blocks it) -> —
+   const rows=SW_LIVE.filter(r=>r.vol!=null).sort((a,b)=>b.vol-a.vol);
+   body=rows.map(r=>'<tr><td>'+insSym(r)+'</td><td>'+mpActCell+'</td><td class="metric">'+(+r.vol).toLocaleString('en-IN')+'</td><td class="c"><span class="mut">—</span></td><td class="c"><span class="mut">—</span></td></tr>').join('');
+  }else{
+   body=DELIVERY_STOCKS.map(r=>'<tr><td>'+insSym(r)+'</td><td>'+mpActCell+'</td><td class="metric">'+r.vol+'</td><td class="metric">'+r.avg.toFixed(2)+'</td><td><div class="delcell"><span>'+r.del.toFixed(2)+'</span><span class="delbar"><span style="width:'+r.del+'%"></span></span></div></td></tr>').join('');
+  }
+  h+='<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden"><table><thead><tr><th>SYMBOL</th><th></th><th class="r">VOLUME</th><th class="c">AVG. DEL %</th><th class="c">DELIVERY %</th></tr></thead><tbody>'+body+'</tbody></table></div>';
+  if(SW_LIVE)h+='<div style="color:var(--muted);font-size:12px;margin-top:10px">Volume is live. Delivery % is end-of-day data (not available via live API).</div>';
  }else{
   const cols=s.sgn?['pct','dt','sgn']:['pct','dt'];
   const heads='<th>SYMBOL</th><th></th>'+cols.map(c=>'<th class="c">'+SWHEADS[c]+(c==='dt'?' ▾':'')+'</th>').join('');
