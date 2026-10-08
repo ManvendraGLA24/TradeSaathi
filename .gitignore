@@ -1,6 +1,12 @@
 node_modules/
 .next/
 dist/
+out/
 .DS_Store
 *.log
 _mpcheck.js
+
+# Secrets — NEVER commit these
+.env
+.env.*
+!.env.example
