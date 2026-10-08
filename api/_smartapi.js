@@ -3,6 +3,7 @@
 // calls to respect SmartAPI rate limits, retries on rate-limit, and caches the
 // session + symbol->token lookups across warm invocations.
 import crypto from 'node:crypto';
+import { NSE_TOKENS } from './_tokens.js';
 
 const BASE = 'https://apiconnect.angelbroking.com';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -77,6 +78,8 @@ async function authed(path, body) {
 
 const tokenCache = new Map();
 export async function resolveToken(exchange, symbol) {
+  // Baked map first — no API call for known NSE symbols.
+  if (exchange === 'NSE' && NSE_TOKENS[symbol]) return { tradingsymbol: symbol + '-EQ', symboltoken: NSE_TOKENS[symbol] };
   const key = exchange + ':' + symbol;
   if (tokenCache.has(key)) return tokenCache.get(key);
   const j = await authed('/rest/secure/angelbroking/order/v1/searchScrip', { exchange, searchscrip: symbol });
@@ -85,6 +88,20 @@ export async function resolveToken(exchange, symbol) {
   const tok = pick ? { tradingsymbol: pick.tradingsymbol, symboltoken: pick.symboltoken } : null;
   tokenCache.set(key, tok);
   return tok;
+}
+
+// Live quote rows for a list of { symbol, token } (one batch call, no lookups).
+export async function quoteTokens(exchange, items) {
+  if (!items.length) return [];
+  const j = await authed('/rest/secure/angelbroking/market/v1/quote/', { mode: 'FULL', exchangeTokens: { [exchange]: items.map((i) => String(i.token)) } });
+  const byTok = new Map((j?.data?.fetched || []).map((f) => [String(f.symbolToken), f]));
+  return items.map((i) => {
+    const f = byTok.get(String(i.token)) || {};
+    return {
+      symbol: i.symbol, ltp: f.ltp ?? null, open: f.open ?? null, high: f.high ?? null, low: f.low ?? null, close: f.close ?? null,
+      pct: f.percentChange ?? null, change: f.netChange ?? null, volume: f.tradeVolume ?? null,
+    };
+  });
 }
 
 // Live quote rows for symbols on an exchange (default NSE equity).

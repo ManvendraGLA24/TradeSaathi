@@ -485,6 +485,18 @@ const mpSym=r=>'<div class="symc"><span class="symi" style="background:'+r[4]+'"
 const mpPill=p=>'<span class="pill '+(p>=0?'up':'down')+'">'+p.toFixed(2)+'</span>';
 const mpActCell='<div class="acts"><span class="actb">'+icoChart+'</span><span class="actb bm">'+icoBm+'</span></div>';
 
+/* Live universe (from /api/universe) powers the scanners; mock when no backend. */
+let MP_LIVE=null;
+const MP_PALETTE=['#e8403a','#d98f2b','#2d6cdf','#a51f56','#1f7ae0','#2aa4c4','#e8902d','#8b9096','#6c4ad9','#2b2b3f'];
+function mpColor(sym){let h=0;for(let i=0;i<sym.length;i++)h=(h*31+sym.charCodeAt(i))>>>0;return MP_PALETTE[h%MP_PALETTE.length];}
+function mpRows(s){
+ if(!MP_LIVE) return MPSTOCKS;
+ const f=s.metric==='DIFF'?'diff':s.metric==='T.O.'?'turnover':'rfac';
+ return MP_LIVE.filter(d=>d.pct!=null).map(d=>[d.symbol,d.symbol,d.pct,(d[f]??0),mpColor(d.symbol),d.pct>=0?'bull':'bear']);
+}
+async function liveMP(){
+ try{const r=await fetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;MP_LIVE=j.data;renderMP();}catch(e){}
+}
 function renderMP(){
  const s=SCANNERS.find(x=>x.id===mpActive);
  document.getElementById('mpscan').innerHTML=SCANNERS.map(x=>'<button class="mpsb'+(x.id===mpActive?' on':'')+'" data-s="'+x.id+'">'+x.title+'</button>').join('');
@@ -499,7 +511,7 @@ function renderMP(){
  if(s.empty){
   h+='<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden"><table><thead><tr><th>SGN</th><th>SYMBOL</th><th class="r">%</th><th class="r">SGN %</th><th class="r">TIME</th></tr></thead></table><div class="mpempty"><h3>Waiting on session prints</h3><p>Signals fill as the tape builds. Check back in a few minutes.</p></div></div>';
  }else{
-  const rows=[...MPSTOCKS].sort(s.sort);
+  const rows=[...mpRows(s)].sort(s.sort);
   h+='<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden"><table><thead><tr><th>SYMBOL</th><th></th><th class="r">%</th><th class="r">'+s.metric+'</th>'+(s.sgn?'<th class="r">SGN</th>':'')+'</tr></thead><tbody>';
   h+=rows.map(r=>'<tr><td>'+mpSym(r)+'</td><td>'+mpActCell+'</td><td class="r">'+mpPill(r[2])+'</td><td class="metric">'+r[3].toFixed(2)+'</td>'+(s.sgn?'<td class="sgnc">'+(r[5]==='bull'?'🐂':'🐻')+'</td>':'')+'</tr>').join('');
   h+='</tbody></table></div>';
@@ -507,6 +519,8 @@ function renderMP(){
  document.getElementById('mpbody').innerHTML=h;
 }
 renderMP();
+liveMP();
+setInterval(()=>{const el=document.getElementById('mp');if(el&&el.classList.contains('on'))liveMP();},8000);
 
 /* sector heatmap */
 function heat(p){const c=Math.max(-3,Math.min(3,p));const a=(0.25+Math.abs(c)/3*0.6).toFixed(2);return c>=0?'rgba(22,199,132,'+a+')':'rgba(234,57,67,'+a+')';}
