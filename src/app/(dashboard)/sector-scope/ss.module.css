@@ -1,0 +1,40 @@
+/* Sector Scope — sector heatmap / treemap */
+
+.board {
+  columns: 3 260px;
+  column-gap: 12px;
+}
+@media (max-width: 1000px) { .board { columns: 2 240px; } }
+@media (max-width: 680px)  { .board { columns: 1; } }
+
+.sector { break-inside: avoid; margin-bottom: 12px; }
+.sectorName { font-size: 12.5px; font-weight: 800; color:#cfd6e6; letter-spacing:.3px; margin: 2px 0 6px; }
+
+.tiles { display:flex; flex-wrap:wrap; gap:3px; }
+.tile {
+  flex: 1 1 auto;
+  min-width: 48px;
+  height: 58px;
+  border-radius: 4px;
+  display:flex; align-items:center; justify-content:center;
+  font-size: 11.5px; font-weight: 800; color:#fff; text-align:center;
+  padding: 4px; cursor: default; position: relative; overflow: hidden;
+  border: 1px solid rgba(0,0,0,.25);
+  transition: filter .12s, outline .12s;
+}
+.tile:hover { filter: brightness(1.15); outline: 2px solid rgba(255,255,255,.5); z-index: 2; }
+.big { flex-basis: 100%; height: 92px; font-size: 13px; }
+.mid { flex-basis: 44%; }
+
+/* Tooltip */
+.tip {
+  position: fixed; z-index: 50; pointer-events:none;
+  background:#0c1322; border:1px solid var(--border); border-radius:8px;
+  padding:8px 11px; font-size:12px; box-shadow:0 8px 24px rgba(0,0,0,.5);
+  transform: translate(-50%, -115%);
+}
+.tipSym { font-weight:800; color:#fff; }
+.tipPct { font-size:11px; margin-top:2px; }
+
+.legend { display:flex; align-items:center; gap:8px; margin-left:auto; font-size:12px; color:var(--muted); }
+.legendBar { width:120px; height:10px; border-radius:6px; background:linear-gradient(90deg,#ea3943,#3a3f4b,#16c784); }

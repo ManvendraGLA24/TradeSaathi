@@ -1,0 +1,165 @@
+/* Calculator — Risk / Position Size, CAGR, SIP, EMI, Option.
+   Reuses the shared feature-page tokens defined on .page (shell.module.css). */
+
+/* Outer card that wraps the whole tool */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px;
+}
+.cardTitle {
+  font-size: 19px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- Tab row ---- */
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 10px;
+  background: var(--raise);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, box-shadow .15s;
+}
+.tab:hover { color: var(--text); }
+.tab .ico { font-size: 16px; line-height: 1; }
+.tabActive {
+  color: var(--accent2);
+  border-color: rgba(79, 140, 255, .6);
+  box-shadow: 0 0 0 1px rgba(79, 140, 255, .35), 0 0 18px rgba(79, 140, 255, .15);
+}
+
+/* ---- Inner form panel ---- */
+.pane {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+}
+
+/* Segmented toggle (Equity / F&O), right-aligned */
+.segRow { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+.seg {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--raise);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+}
+.segBtn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.segActive { background: var(--accent2); color: #fff; }
+
+/* Fields */
+.field { margin-bottom: 16px; }
+.label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.req { color: var(--accent2); }
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--raise);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.input::placeholder { color: var(--muted); }
+.input:focus {
+  border-color: rgba(79, 140, 255, .55);
+  box-shadow: 0 0 0 2px rgba(79, 140, 255, .18);
+}
+
+/* Button row */
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 14px;
+  margin-top: 4px;
+}
+.btn {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter .15s, background .15s;
+}
+.btnGhost { background: var(--raise); color: var(--text); }
+.btnGhost:hover { background: #18202f; }
+.btnPrimary { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+.btnPrimary:hover { filter: brightness(1.08); }
+
+/* Result block */
+.result { margin-top: 22px; }
+.resultTitle {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.resultRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 0;
+  font-size: 15px;
+}
+.resultRow + .resultRow { border-top: 1px solid var(--border); }
+.resultRow .k { color: var(--text); }
+.resultRow .v { color: #fff; font-weight: 800; }
+.resultRow .vAccent { color: var(--accent); }
+.resultRow .vUp { color: var(--up); }
+.resultRow .vDown { color: var(--down); }
+
+.hint { color: var(--muted); font-size: 12.5px; margin: 14px 0 0; line-height: 1.5; }
+
+/* Narrow screens */
+@media (max-width: 720px) {
+  .tabs { grid-template-columns: repeat(3, 1fr); }
+  .tab { flex-direction: column; gap: 5px; font-size: 13px; padding: 12px 6px; }
+}
