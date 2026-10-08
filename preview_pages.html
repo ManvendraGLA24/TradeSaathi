@@ -675,8 +675,16 @@ function insCell(c,r,s){
  if(c==='dt')return '<span class="dt">'+(s.dtShort?r.dt.split(' ')[0]:r.dt)+'</span>';
  return '<span class="mut">—</span>';
 }
+let INS_LIVE=null;
+async function liveInsider(){
+ try{const r=await fetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;
+  const now=new Date().toISOString().slice(0,19).replace('T',' ');
+  INS_LIVE=j.data.filter(d=>d.pct!=null).map(d=>({sym:d.symbol,name:d.symbol,pct:d.pct,dt:now,color:mpColor(d.symbol)}));
+  renderInsider();}catch(e){}
+}
 function renderInsider(){
  const s=INS_SCANNERS.find(x=>x.id===insActive);
+ const STOCKS=INS_LIVE||INS_STOCKS;
  document.getElementById('insscan').innerHTML=INS_SCANNERS.map(x=>'<button class="mpsb'+(x.id===insActive?' on':'')+'" data-s="'+x.id+'">'+x.title+'</button>').join('');
  document.querySelectorAll('#insscan .mpsb').forEach(b=>b.onclick=()=>{insActive=b.dataset.s;renderInsider();});
  let h='<div class="mphero">';
@@ -684,16 +692,18 @@ function renderInsider(){
  h+='<div class="ht"><h3>'+s.title+' 💡</h3><div class="hm"><span class="howto">How to use ▶</span><span class="live">LIVE</span></div></div>';
  h+='<div class="mpright"><div class="search">'+icoSearch+' Search symbol</div><div class="vtog"><button class="vtb on">'+icoList+'</button><button class="vtb">'+icoGrid+'</button></div></div></div>';
  if(s.layout==='heat'){
-  const rows=[...INS_STOCKS].sort((a,b)=>Math.abs(b.pct)-Math.abs(a.pct));
+  const rows=[...STOCKS].sort((a,b)=>Math.abs(b.pct)-Math.abs(a.pct)).slice(0,10);
   h+='<div class="heatwrap">'+rows.map((r,i)=>'<div class="htile'+(i<2?' big':'')+'" style="background:'+heat(r.pct)+'"><div class="tip">'+r.sym+'<small>% CHG.: '+r.pct.toFixed(2)+'</small></div>'+r.sym+'</div>').join('')+'</div>';
  }else{
   const heads='<th>SYMBOL</th><th></th>'+s.cols.map(c=>'<th class="c">'+INSCOL[c]+(c==='dt'?' ▾':'')+'</th>').join('');
-  const body=INS_STOCKS.map(r=>'<tr><td>'+insSym(r)+'</td><td>'+mpActCell+'</td>'+s.cols.map(c=>'<td class="c">'+insCell(c,r,s)+'</td>').join('')+'</tr>').join('');
+  const body=STOCKS.map(r=>'<tr><td>'+insSym(r)+'</td><td>'+mpActCell+'</td>'+s.cols.map(c=>'<td class="c">'+insCell(c,r,s)+'</td>').join('')+'</tr>').join('');
   h+='<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden"><table><thead><tr>'+heads+'</tr></thead><tbody>'+body+'</tbody></table></div>';
  }
  document.getElementById('insbody').innerHTML=h;
 }
 renderInsider();
+liveInsider();
+setInterval(()=>{const el=document.getElementById('insider');if(el&&el.classList.contains('on'))liveInsider();},8000);
 
 /* ---- Index Mover ---- */
 /* === DATA LAYER (mock). Replace INDEX_MOVERS with the live Angel One SmartAPI feed.
@@ -807,14 +817,22 @@ const SWHEADS={pct:'%',dt:'DATE',sgn:'SGN'};
 function swHero(s){
  return '<div class="mphero"><div class="badge" style="border-color:#16c78466"><div class="bc">'+badgeBars+'</div><div class="bl" style="color:#16c784">'+s.bl+'</div></div><div class="ht"><h3>'+s.title+' 💡</h3><div class="hm"><span class="howto">How to use ▶</span><span class="live">LIVE</span></div></div><div class="mpright"><div class="search">'+icoSearch+' Search symbol</div><div class="vtog"><button class="vtb on">'+icoList+'</button><button class="vtb">'+icoGrid+'</button></div></div></div>';
 }
+let SW_LIVE=null;
+async function liveSwing(){
+ try{const r=await fetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;
+  const now=new Date().toISOString().slice(0,10);
+  SW_LIVE=j.data.filter(d=>d.pct!=null).map(d=>({sym:d.symbol,name:d.symbol,val:d.pct,dt:now,color:mpColor(d.symbol)}));
+  renderSwing();}catch(e){}
+}
 function renderSwing(){
  const s=SWING_SCANNERS.find(x=>x.id===swActive);
+ const STOCKS=SW_LIVE||SWING_STOCKS;
  document.getElementById('swscan').innerHTML=SWING_SCANNERS.map(x=>'<button class="mpsb'+(x.id===swActive?' on':'')+'" data-s="'+x.id+'">'+x.title+'</button>').join('');
  document.querySelectorAll('#swscan .mpsb').forEach(b=>b.onclick=()=>{swActive=b.dataset.s;renderSwing();});
  let h=swHero(s);
  if(s.layout==='heat'){
-  const rows=[...SWING_STOCKS].sort((a,b)=>b.val-a.val);
-  h+='<div class="heatwrap">'+rows.map((r,i)=>'<div class="htile'+(i<2?' big':'')+'" style="background:'+heat(3)+'"><div class="tip">'+r.sym+'<small>'+r.val.toFixed(2)+'</small></div>'+r.sym+'</div>').join('')+'</div>';
+  const rows=[...STOCKS].sort((a,b)=>Math.abs(b.val)-Math.abs(a.val)).slice(0,10);
+  h+='<div class="heatwrap">'+rows.map((r,i)=>'<div class="htile'+(i<2?' big':'')+'" style="background:'+heat(r.val)+'"><div class="tip">'+r.sym+'<small>'+r.val.toFixed(2)+'</small></div>'+r.sym+'</div>').join('')+'</div>';
  }else if(s.layout==='delivery'){
   h+='<div class="filters"><div class="sel"><span>% &nbsp; Highest Delivery</span><span>▾</span></div><div class="sel"><span>▦ &nbsp; F&O</span><span>▾</span></div></div>';
   const body=DELIVERY_STOCKS.map(r=>'<tr><td>'+insSym(r)+'</td><td>'+mpActCell+'</td><td class="metric">'+r.vol+'</td><td class="metric">'+r.avg.toFixed(2)+'</td><td><div class="delcell"><span>'+r.del.toFixed(2)+'</span><span class="delbar"><span style="width:'+r.del+'%"></span></span></div></td></tr>').join('');
@@ -823,7 +841,7 @@ function renderSwing(){
  }else{
   const cols=s.sgn?['pct','dt','sgn']:['pct','dt'];
   const heads='<th>SYMBOL</th><th></th>'+cols.map(c=>'<th class="c">'+SWHEADS[c]+(c==='dt'?' ▾':'')+'</th>').join('');
-  const body=SWING_STOCKS.map(r=>'<tr><td>'+insSym(r)+'</td><td>'+mpActCell+'</td>'+cols.map(c=>{
+  const body=STOCKS.map(r=>'<tr><td>'+insSym(r)+'</td><td>'+mpActCell+'</td>'+cols.map(c=>{
    if(c==='pct')return '<td class="c">'+mpPill(r.val)+'</td>';
    if(c==='dt')return '<td class="c"><span class="dt">'+r.dt+'</span></td>';
    return '<td class="sgnc"><span class="mut">—</span></td>';
@@ -833,6 +851,8 @@ function renderSwing(){
  document.getElementById('swbody').innerHTML=h;
 }
 renderSwing();
+liveSwing();
+setInterval(()=>{const el=document.getElementById('swing');if(el&&el.classList.contains('on'))liveSwing();},8000);
 
 /* ---- Trading Journal ---- */
 /* === P&L / trades come live from Angel One (the user's actual executed trades).
