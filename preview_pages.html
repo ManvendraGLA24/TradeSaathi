@@ -958,6 +958,7 @@ function buildFiiCharts(){
  FDX.forEach((d,k)=>{const x=pl+(pr-pl)*k/(FDX.length-1);xl+='<text x="'+x.toFixed(1)+'" y="452" text-anchor="middle" font-size="10.5" fill="#9aa3b5">'+d+'</text>';});
  return '<svg viewBox="0 0 700 470" width="100%">'+fdPanel(fiiSeries,12350,'FII Net',28)+fdPanel(diiSeries,2964,'DII Net',174)+fdPanel(sumSeries,11329,'FII + DII',320)+xl+'</svg>';
 }
+let FD_LIVE=false;
 function renderFiiDii(){
  let h='<div class="imcard"><div class="fihd"><b>FII / DII</b> 💡 <span class="dot2"></span><span class="activeb">ACTIVE</span><span class="howto" style="margin-left:4px">How to use ▶</span></div>'+buildFiiCharts()+'</div>';
  // table
@@ -965,7 +966,7 @@ function renderFiiDii(){
  const body=FIIDII_TABLE.map((r,i)=>{const fn=r.fb-r.fs,dn=r.db-r.ds;
   return '<tr'+(i===0?' style="background:rgba(79,140,255,.10)"':'')+'><td class="dt" style="padding-left:14px;font-weight:700;color:#fff">'+r.date+'</td><td class="metric">'+r.fb.toLocaleString('en-IN')+'</td><td class="metric">'+r.fs.toLocaleString('en-IN')+'</td><td class="r">'+net(fn)+'</td><td class="r"><span class="impill '+(r.im>=0?'up':'down')+'">'+fdFmt(r.im)+'</span></td><td class="metric">'+r.db.toLocaleString('en-IN')+'</td><td class="metric">'+r.ds.toLocaleString('en-IN')+'</td><td class="r">'+net(dn)+'</td><td class="r">'+net(fn+dn)+'</td></tr>';
  }).join('');
- h+='<div class="imcard"><div class="fihd"><b>Capital Market Activity (in Cr.)</b> 💡</div><div class="tblscroll"><table><thead><tr><th>DATE ▾</th><th class="r">FII BUY</th><th class="r">FII SELL</th><th class="r">FII NET</th><th class="r">IN MARKET</th><th class="r">DII BUY</th><th class="r">DII SELL</th><th class="r">DII NET</th><th class="r">FII+DII</th></tr></thead><tbody>'+body+'</tbody></table></div>'+
+ h+='<div class="imcard"><div class="fihd"><b>Capital Market Activity (in Cr.)</b>'+(FD_LIVE?' <span class="activeb" style="background:rgba(22,199,132,.18);color:#4ecb8f">● NSE LIVE</span>':'')+' 💡</div><div class="tblscroll"><table><thead><tr><th>DATE ▾</th><th class="r">FII BUY</th><th class="r">FII SELL</th><th class="r">FII NET</th><th class="r">IN MARKET</th><th class="r">DII BUY</th><th class="r">DII SELL</th><th class="r">DII NET</th><th class="r">FII+DII</th></tr></thead><tbody>'+body+'</tbody></table></div>'+
   '<div class="pager"><span>Total Count: 40</span><span class="pgnav">Rows <span class="rowsel">10 ▾</span> 1–10 of 40 <span class="howto" style="padding:4px 10px">Prev</span> 1/4 <span class="howto" style="padding:4px 10px">Next</span></span></div></div>';
  // explainer
  h+='<div class="imcard"><div class="explain"><h3>What is FII / DII ?</h3><p>Any market participant\'s buy or sell decision results in an impact on the price of any stock. People like you and me, who individually invest in the stock market, all come under the retail category. The investment institutions like mutual funds, pension funds fall under the foreign institutional investors (FII) or domestic institutional investors (DII) category.</p>'+
@@ -974,7 +975,18 @@ function renderFiiDii(){
   '<h4>How to use FII / DII data ?</h4><p>Compare to DIIs investment, we focus more on FII investment and activities because of their research quality. It is no need to mention that purchasing power of FIIs is much bigger than DIIs. That is why FIIs are named as market movers because their buying and selling quantity moves the market direction.</p><p>If FII are buying, usually markets remains bullish and it goes up and similarly if FII are selling that means that market will fall or it is going to give a down move in comes days.</p></div></div>';
  document.getElementById('fdbody').innerHTML=h;
 }
+async function liveFiiDii(){
+ try{const r=await fetch('/api/fiidii');if(!r.ok)return;const j=await r.json();if(!j||!j.data||!j.data[0])return;const d=j.data[0];
+  FIIDII_TABLE[0]={date:d.date,fb:d.fiiBuy||0,fs:d.fiiSell||0,im:d.fiiNet||0,db:d.diiBuy||0,ds:d.diiSell||0};
+  if(d.fiiNet!=null)fiiSeries[fiiSeries.length-1]=d.fiiNet;
+  if(d.diiNet!=null)diiSeries[diiSeries.length-1]=d.diiNet;
+  for(let i=0;i<sumSeries.length;i++)sumSeries[i]=fiiSeries[i]+diiSeries[i];
+  FD_LIVE=true;renderFiiDii();
+ }catch(e){}
+}
 renderFiiDii();
+liveFiiDii();
+setInterval(()=>{const el=document.getElementById('fiidii');if(el&&el.classList.contains('on'))liveFiiDii();},60000);
 
 /* ---- Option Apex ---- */
 /* === Chart candles, gauges and Money Flux all come live from Angel One option/
