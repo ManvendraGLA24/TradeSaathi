@@ -12,3 +12,9 @@ export const NSE_TOKENS = {
   EICHERMOT: "910", BRITANNIA: "547", APOLLOHOSP: "157", GRASIM: "1232",
 };
 export const UNIVERSE = Object.keys(NSE_TOKENS);
+
+// NSE index tokens (for the Home ticker / Index Mover).
+export const INDEX_TOKENS = {
+  'NIFTY 50': '99926000', 'NIFTY BANK': '99926009', 'NIFTY FIN SERVICE': '99926037',
+  'NIFTY IT': '99926008', 'INDIA VIX': '99926017',
+};

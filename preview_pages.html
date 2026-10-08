@@ -324,7 +324,7 @@
     <section class="view on" id="home">
       <div class="h2">Global Markets</div>
       <p class="lead">Global stock market movements impact investor sentiment and confidence in the Indian stock market. Positive trends in major global indices often lead to increased investor optimism, driving up demand for Indian stocks and vice versa.</p>
-      <div class="ticker">
+      <div class="ticker" id="ticker">
         <div class="tk"><div class="t">DOW JONES</div><div class="p">50,692.00</div><div class="c">-451.00 (-0.88%)</div></div>
         <div class="tk"><div class="t">NIKKEI</div><div class="p">68,778</div><div class="c">-878.00 (-1.26%)</div></div>
         <div class="tk"><div class="t">BTC/USD</div><div class="p">82,423.83</div><div class="c">-902.68 (-1.08%)</div></div>
@@ -451,6 +451,18 @@ const TOOLS=[
 document.getElementById('tools').innerHTML=TOOLS.map(t=>
  '<div class="card" data-v="'+(VIEWMAP[t[0]]||'')+'" style="cursor:pointer">'+lk.replace('class="lk"','class="lk"')+'<div class="ci" style="background:'+t[1]+'1f;color:'+t[1]+'">'+P.replace('18','22').replace('18','22')+t[2].split('|').map(d=>'<path d="'+d+'"/>').join('')+E+'</div><h4>'+t[0]+'</h4><p>'+t[3]+'</p></div>'
 ).join('');
+
+/* Home ticker -> live NSE indices (mock global values stay if no backend). */
+async function liveTicker(){
+ try{const r=await fetch('/api/indices');if(!r.ok)return;const j=await r.json();if(!j||!j.data||!j.data.length)return;
+  const el=document.getElementById('ticker');if(!el)return;
+  el.innerHTML=j.data.map(d=>{const chg=d.change??0,pct=d.pct??0,up=chg>=0;
+   return '<div class="tk"><div class="t">'+d.symbol+'</div><div class="p">'+(d.ltp!=null?(+d.ltp).toLocaleString('en-IN',{maximumFractionDigits:2}):'—')+'</div><div class="c" style="color:'+(up?'#16c784':'#ea3943')+'">'+(up?'+':'')+chg.toFixed(2)+' ('+(up?'+':'')+pct.toFixed(2)+'%)</div></div>';
+  }).join('');
+ }catch(e){}
+}
+liveTicker();
+setInterval(()=>{const el=document.getElementById('home');if(el&&el.classList.contains('on'))liveTicker();},8000);
 
 /* ---- Market Pulse scanners ---- */
 /* [symbol, company, pct, metric, iconColor, sgn] — metric reused as R.FAC/DIFF/T.O. */
@@ -753,8 +765,21 @@ function buildDonut(data){
  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="max-width:600px">'+segs+lab+centre+'</svg>';
 }
 
+let IM_LIVE=null, IM_IDX=null;
+async function liveIndexMover(){
+ try{
+  const [u,i]=await Promise.all([fetch('/api/universe'),fetch('/api/indices')]);
+  if(u.ok){const j=await u.json();if(j&&j.data)IM_LIVE=j.data.filter(d=>d.pct!=null).map(d=>({sym:d.symbol,pct:d.pct,pts:+(d.pct).toFixed(2),color:mpColor(d.symbol)}));}
+  if(i.ok){const j=await i.json();if(j&&j.data){const n=j.data.find(x=>x.symbol==='NIFTY 50');if(n)IM_IDX=n;}}
+  if(IM_LIVE||IM_IDX)renderIndexMover();
+ }catch(e){}
+}
 function renderIndexMover(){
- const data=INDEX_MOVERS;
+ const data=IM_LIVE||INDEX_MOVERS;
+ const ranked=[...data].sort((a,b)=>Math.abs(b.pts)-Math.abs(a.pts));
+ const nifty=IM_IDX, nchg=nifty?(nifty.change??0):0, npct=nifty?(nifty.pct??0):0, nup=nchg>=0;
+ const nv=nifty&&nifty.ltp!=null?(+nifty.ltp).toLocaleString('en-IN',{maximumFractionDigits:2}):'0.00';
+ const ncol=nup?'#16c784':'#ea3943';
  const gain=data.filter(d=>d.pts>=0).length,lose=data.length-gain;
  const gpct=(gain/(gain+lose)*100).toFixed(1);
  // donut: top 9 by |pts| + OTHERS (net of the rest)
@@ -762,20 +787,22 @@ function renderIndexMover(){
  const rest=sorted.slice(9).reduce((s,d)=>s+d.pts,0);
  const donutData=[...sorted.slice(0,9),{sym:'OTHERS',pts:+rest.toFixed(2)}].sort((a,b)=>b.pts-a.pts);
  const maxAbs=Math.max(...data.map(d=>Math.abs(d.pts)));
- const drv=data.map((d,i)=>{
+ const drv=ranked.map((d,i)=>{
   const col=d.pts>=0?'#16c784':'#ea3943',w=(Math.abs(d.pts)/maxAbs*100).toFixed(1);
   return '<div class="drv"><span class="rk">'+String(i+1).padStart(2,'0')+'</span><span class="ii" style="background:'+d.color+'">'+d.sym.slice(0,2)+'</span><span class="nm"><b>'+d.sym+'</b><small class="'+(d.pct>=0?'up':'down')+'">'+(d.pct>=0?'+':'')+d.pct.toFixed(2)+'%</small></span><span class="track"><span class="fill" style="width:'+w+'%;background:'+col+'"></span></span><span class="val" style="color:'+col+'">'+(d.pts>=0?'+':'')+d.pts.toFixed(2)+'</span></div>';
  }).join('');
  let h='';
  h+='<div class="imhero"><svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><polyline points="0,44 35,40 70,34 105,30 140,22 170,24 200,16" fill="none" stroke="#16c784" stroke-width="2"/></svg>';
- h+='<div><div class="idx">NIFTY 50</div><div class="idxv">0.00</div></div>';
- h+='<div class="idxr"><div class="p up">UP 0.00 PTS</div><div class="p up">0.00%</div></div></div>';
+ h+='<div><div class="idx">NIFTY 50</div><div class="idxv">'+nv+'</div></div>';
+ h+='<div class="idxr"><div class="p" style="color:'+ncol+'">'+(nup?'UP ':'DOWN ')+Math.abs(nchg).toFixed(2)+' PTS</div><div class="p" style="color:'+ncol+'">'+(nup?'+':'')+npct.toFixed(2)+'%</div></div></div>';
  h+='<div class="imcard imgl"><div class="t">Gainers / Losers</div><div class="glbar"><span class="g" style="width:'+gpct+'%"></span><span class="l" style="width:'+(100-gpct)+'%"></span></div><div class="glleg"><span class="gi">● Gainer : '+gain+'</span><span class="li">Losers : '+lose+' ●</span></div></div>';
  h+='<div class="imcard"><div class="imchip"><span class="b">50</span> NIFTY 50</div><div class="donutwrap">'+buildDonut(donutData)+'</div></div>';
  h+='<div class="imcard"><div class="sect2"><b>Drivers</b> <span class="up" style="font-weight:800">0.00 pts</span><div class="sub">Ranked by contribution · bar width is point share</div></div>'+drv+'</div>';
  document.getElementById('imbody').innerHTML=h;
 }
 renderIndexMover();
+liveIndexMover();
+setInterval(()=>{const el=document.getElementById('indexmover');if(el&&el.classList.contains('on'))liveIndexMover();},8000);
 
 /* ---- Swing Spectrum scanners ---- */
 /* === DATA LAYER (mock) — replace with live Angel One SmartAPI feed. Scanners are
