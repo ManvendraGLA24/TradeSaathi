@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 40 40%27%3E%3Ccircle cx=%2720%27 cy=%2720%27 r=%2718%27 fill=%27%230a0e17%27 stroke=%27%232dd4e8%27 stroke-width=%273%27/%3E%3Cpath d=%27M11 25l5-6 4 3 9-10%27 fill=%27none%27 stroke=%27%232dd4e8%27 stroke-width=%273%27/%3E%3C/svg%3E" />
 <title>TradeSaathi — Pages Preview</title>
 <style>
   :root{
@@ -312,6 +313,27 @@
   .newsitem p{margin:0 0 8px;font-size:12.5px;color:var(--muted);line-height:1.5}
   .newsmeta{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);font-weight:600}
   .newsdot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+
+  /* stock history modal + save toast */
+  .hmodal{position:fixed;inset:0;background:rgba(3,6,12,.72);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
+  .hmodal.on{display:flex}
+  .hbox{width:100%;max-width:820px;max-height:92vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px 20px}
+  .hhead{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+  .hhead b{color:#fff;font-size:18px;font-weight:800}
+  .hsub{color:var(--muted);font-size:12px;font-weight:600;margin-top:2px}
+  .hrng{margin-left:auto;display:flex;gap:4px;background:var(--raise);border:1px solid var(--border);border-radius:9px;padding:3px}
+  .hrng button{border:none;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:800;padding:6px 12px;border-radius:6px;cursor:pointer}
+  .hrng button.on{background:var(--accent2);color:#fff}
+  .hx{border:1px solid var(--border);background:var(--raise);color:var(--text);border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:14px}
+  .hmsg{color:var(--muted);text-align:center;padding:60px 10px;font-size:14px}
+  .hstats{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:12px}
+  .hstat{background:var(--raise);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+  .hstat .k{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.3px}
+  .hstat .v{color:#fff;font-size:15px;font-weight:800;margin-top:4px}
+  .actb.bm:hover{background:rgba(79,140,255,.18)}
+  .actb:hover{color:#fff}
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#16203a;border:1px solid rgba(79,140,255,.45);color:#fff;font-size:13px;font-weight:700;padding:10px 16px;border-radius:10px;opacity:0;pointer-events:none;transition:all .2s;z-index:120}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
@@ -425,7 +447,31 @@
     </section>
   </div>
 
+  <!-- STOCK HISTORY MODAL (previous data) -->
+  <div class="hmodal" id="hmodal">
+    <div class="hbox">
+      <div class="hhead">
+        <div><b id="htitle"></b><div class="hsub" id="hsub"></div></div>
+        <div class="hrng" id="hrng"></div>
+        <button class="hx" id="hclose" title="Close">✕</button>
+      </div>
+      <div id="hchart"></div>
+      <div class="hstats" id="hstats"></div>
+    </div>
+  </div>
+
 <script>
+/* One shared, de-duplicated fetch for /api: modules that need the same endpoint at
+   the same moment share a single request (reused for 4s), so SmartAPI is not hit
+   once per module. */
+const _apiCache=new Map();
+function apiFetch(url){
+ const hit=_apiCache.get(url);
+ if(hit&&Date.now()-hit.t<4000)return hit.p.then(r=>r.clone());
+ const p=fetch(url);_apiCache.set(url,{t:Date.now(),p});
+ p.catch(()=>_apiCache.delete(url));
+ return p.then(r=>r.clone());
+}
 /* sidebar items */
 const P='<svg width="18" height="18" viewBox="0 0 24 24">',E='</svg>';
 const lk='<span class="lk"><svg width="14" height="14" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>';
@@ -465,7 +511,7 @@ document.getElementById('tools').innerHTML=TOOLS.map(t=>
 
 /* Home ticker -> live NSE indices (mock global values stay if no backend). */
 async function liveTicker(){
- try{const r=await fetch('/api/indices');if(!r.ok)return;const j=await r.json();if(!j||!j.data||!j.data.length)return;
+ try{const r=await apiFetch('/api/indices');if(!r.ok)return;const j=await r.json();if(!j||!j.data||!j.data.length)return;
   const el=document.getElementById('ticker');if(!el)return;
   el.innerHTML=j.data.map(d=>{const chg=d.change??0,pct=d.pct??0,up=chg>=0;
    return '<div class="tk"><div class="t">'+d.symbol+'</div><div class="p">'+(d.ltp!=null?(+d.ltp).toLocaleString('en-IN',{maximumFractionDigits:2}):'—')+'</div><div class="c" style="color:'+(up?'#16c784':'#ea3943')+'">'+(up?'+':'')+chg.toFixed(2)+' ('+(up?'+':'')+pct.toFixed(2)+'%)</div></div>';
@@ -477,7 +523,7 @@ setInterval(()=>{const el=document.getElementById('home');if(el&&el.classList.co
 
 /* Home market news -> /api/news (hidden if no backend). */
 async function liveNews(){
- try{const r=await fetch('/api/news');if(!r.ok)return;const j=await r.json();if(!j||!j.data||!j.data.length)return;
+ try{const r=await apiFetch('/api/news');if(!r.ok)return;const j=await r.json();if(!j||!j.data||!j.data.length)return;
   const el=document.getElementById('news');if(!el)return;
   const sc={positive:'#16c784',negative:'#ea3943',neutral:'#828ba3'};
   el.innerHTML=j.data.slice(0,8).map(n=>'<a class="newsitem" href="'+(n.link||'#')+'" target="_blank" rel="noopener"><h5>'+n.title+'</h5>'+(n.summary?'<p>'+n.summary+'</p>':'')+'<div class="newsmeta"><span class="newsdot" style="background:'+(sc[n.sentiment]||sc.neutral)+'"></span>'+(n.source||'')+(n.time?' · '+n.time:'')+'</div></a>').join('');
@@ -529,7 +575,7 @@ function mpRows(s){
  return MP_LIVE.filter(d=>d.pct!=null).map(d=>[d.symbol,d.symbol,d.pct,(d[f]??0),mpColor(d.symbol),d.pct>=0?'bull':'bear']);
 }
 async function liveMP(){
- try{const r=await fetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;MP_LIVE=j.data;renderMP();}catch(e){}
+ try{const r=await apiFetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;MP_LIVE=j.data;renderMP();}catch(e){}
 }
 function renderMP(){
  const s=SCANNERS.find(x=>x.id===mpActive);
@@ -644,7 +690,7 @@ function liveTable(sector){
  return (SECTOR_MAP[sector]||[]).map(s=>{const d=SS_LIVE[s];return d?{sym:s,name:s,prec:d.ltp??0,pct:d.pct??0,rfac:d.rfac??0,sgn:'',color:mpColor(s)}:null;}).filter(Boolean).sort((a,b)=>b.rfac-a.rfac);
 }
 async function liveSectorScope(){
- try{const r=await fetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;SS_LIVE={};j.data.forEach(d=>SS_LIVE[d.symbol]=d);renderSectorScope();}catch(e){}
+ try{const r=await apiFetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;SS_LIVE={};j.data.forEach(d=>SS_LIVE[d.symbol]=d);renderSectorScope();}catch(e){}
 }
 let sstate={mode:'overview',sector:null};
 function renderSectorScope(){
@@ -711,7 +757,7 @@ function insCell(c,r,s){
 }
 let INS_LIVE=null;
 async function liveInsider(){
- try{const r=await fetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;
+ try{const r=await apiFetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;
   const now=new Date().toISOString().slice(0,19).replace('T',' ');
   INS_LIVE=j.data.filter(d=>d.pct!=null).map(d=>({sym:d.symbol,name:d.symbol,pct:d.pct,dt:now,color:mpColor(d.symbol)}));
   renderInsider();}catch(e){}
@@ -790,7 +836,7 @@ function buildDonut(data){
 let IM_LIVE=null, IM_IDX=null;
 async function liveIndexMover(){
  try{
-  const [u,i]=await Promise.all([fetch('/api/universe'),fetch('/api/indices')]);
+  const [u,i]=await Promise.all([apiFetch('/api/universe'),apiFetch('/api/indices')]);
   if(u.ok){const j=await u.json();if(j&&j.data)IM_LIVE=j.data.filter(d=>d.pct!=null).map(d=>({sym:d.symbol,pct:d.pct,pts:+(d.pct).toFixed(2),color:mpColor(d.symbol)}));}
   if(i.ok){const j=await i.json();if(j&&j.data){const n=j.data.find(x=>x.symbol==='NIFTY 50');if(n)IM_IDX=n;}}
   if(IM_LIVE||IM_IDX)renderIndexMover();
@@ -868,7 +914,7 @@ function swHero(s){
 }
 let SW_LIVE=null;
 async function liveSwing(){
- try{const r=await fetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;
+ try{const r=await apiFetch('/api/universe');if(!r.ok)return;const j=await r.json();if(!j||!j.data)return;
   const now=new Date().toISOString().slice(0,10);
   SW_LIVE=j.data.filter(d=>d.pct!=null).map(d=>({sym:d.symbol,name:d.symbol,val:d.pct,vol:d.volume,dt:now,color:mpColor(d.symbol)}));
   renderSwing();}catch(e){}
@@ -939,7 +985,7 @@ function renderJournal(){
 }
 let JOURNAL_STATS=null;
 async function liveJournal(){
- try{const r=await fetch('/api/portfolio');if(!r.ok)return;const j=await r.json();if(!j||!j.stats)return;JOURNAL_STATS=j.stats;renderJournal();}catch(e){}
+ try{const r=await apiFetch('/api/portfolio');if(!r.ok)return;const j=await r.json();if(!j||!j.stats)return;JOURNAL_STATS=j.stats;renderJournal();}catch(e){}
 }
 renderJournal();
 liveJournal();
@@ -965,31 +1011,51 @@ let wlActive='W1';
 async function apiQuotes(symbols, exchange){
  exchange=exchange||'NSE';
  try{
-  const r=await fetch('/api/quote?exchange='+exchange+'&symbols='+encodeURIComponent(symbols.join(',')));
+  const r=await apiFetch('/api/quote?exchange='+exchange+'&symbols='+encodeURIComponent(symbols.join(',')));
   if(!r.ok) return null;
   const j=await r.json();
   if(!j||!j.data) return null;
   const m={}; j.data.forEach(d=>m[d.symbol]=d); return m;
  }catch(e){ return null; }
 }
+/* Saved watchlists W1-W5 persist in this browser (localStorage). W1 starts with the
+   default list; the ★ icon on any scanner row saves that stock to the active list. */
+const WL_KEY='ts_watchlists_v1';
+const WL_DATA={}; WATCHLIST.forEach(w=>WL_DATA[w.sym]=w);
+function wlLoad(){try{const s=JSON.parse(localStorage.getItem(WL_KEY)||'null');if(s&&s.W1)return s;}catch(e){}return {W1:WATCHLIST.map(w=>w.sym),W2:[],W3:[],W4:[],W5:[]};}
+let WL_STORE=wlLoad();
+function wlSave(){try{localStorage.setItem(WL_KEY,JSON.stringify(WL_STORE));}catch(e){}}
+function wlRows(){return (WL_STORE[wlActive]||[]).map(s=>WL_DATA[s]||(WL_DATA[s]={sym:s,name:s,low:null,high:0,chg:0,pct:0,color:mpColor(s)}));}
+function wlAdd(sym){
+ const L=WL_STORE[wlActive]||(WL_STORE[wlActive]=[]);
+ if(L.includes(sym)){toast(sym+' is already in '+wlActive);return;}
+ L.push(sym);wlSave();toast('★ '+sym+' saved to '+wlActive);
+ if(document.getElementById('watchlist').classList.contains('on'))renderWatchlist();
+}
+function wlRemove(sym){WL_STORE[wlActive]=(WL_STORE[wlActive]||[]).filter(s=>s!==sym);wlSave();toast(sym+' removed from '+wlActive);renderWatchlist();}
 function buildWatchlist(){
- const up=WATCHLIST.filter(w=>w.pct>=0).length,down=WATCHLIST.length-up;
- const upp=up/WATCHLIST.length*100,dp=100-upp;
- let h='<div class="wltabs">'+['W1','W2','W3','W4','W5'].map(t=>'<button class="wltab'+(t===wlActive?' on':'')+'" data-w="'+t+'">'+t+'</button>').join('')+'</div>';
+ const L=wlRows(),n=L.length;
+ let h='<div class="wltabs">'+['W1','W2','W3','W4','W5'].map(t=>'<button class="wltab'+(t===wlActive?' on':'')+'" data-w="'+t+'">'+t+((WL_STORE[t]||[]).length?' · '+WL_STORE[t].length:'')+'</button>').join('')+'</div>';
+ if(!n)return h+'<div class="imcard mpempty"><h3>'+wlActive+' is empty</h3><p>Tap ★ on any scanner row to save a stock here.</p></div>';
+ const up=L.filter(w=>w.pct>=0).length,down=n-up,upp=up/n*100,dp=100-upp;
  h+='<div class="breadth"><div class="bbar"><span class="u" style="width:'+upp.toFixed(2)+'%"></span><span class="d" style="width:'+dp.toFixed(2)+'%"></span></div><div class="bleg"><span class="up">● '+up+' Instruments ('+upp.toFixed(2)+'% Up)</span><span class="down">'+down+' Instruments ('+dp.toFixed(2)+'% Down) ●</span></div></div>';
- h+='<div class="wlcount">'+WATCHLIST.length+' Instruments</div>';
- const body=WATCHLIST.map(r=>{
+ h+='<div class="wlcount">'+n+' Instruments <small style="color:var(--muted)">· click a name for previous data</small></div>';
+ const body=L.map(r=>{
   const range=r.low!=null?'₹'+(+r.low).toFixed(2)+'<span class="cI">▾</span>₹'+(+r.high).toFixed(2):'₹'+(+r.high).toFixed(2);
-  return '<tr><td>'+insSym(r)+'</td><td class="c"><span class="wlrange">'+range+'</span></td><td class="c"><span class="wlchg">'+(+r.chg).toFixed(2)+'</span></td><td class="c">'+mpPill(r.pct)+'</td><td class="c"><span class="trash">'+icoTrash+'</span></td></tr>';
+  return '<tr><td style="cursor:pointer">'+insSym(r)+'</td><td class="c"><span class="wlrange">'+range+'</span></td><td class="c"><span class="wlchg">'+(+r.chg).toFixed(2)+'</span></td><td class="c">'+mpPill(r.pct)+'</td><td class="c"><span class="trash" data-sym="'+r.sym+'" title="Remove">'+icoTrash+'</span></td></tr>';
  }).join('');
  h+='<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden"><table><thead><tr><th>INSTRUMENT</th><th class="c">TODAY\'S RANGE</th><th class="c">TODAY\'S CHANGE</th><th class="c">PERCENT CHG.</th><th class="c">ACTION</th></tr></thead><tbody>'+body+'</tbody></table></div>';
  return h;
 }
-function wireWatchlist(){ document.querySelectorAll('#wlbody .wltab').forEach(b=>b.onclick=()=>{wlActive=b.dataset.w;renderWatchlist();}); }
+function wireWatchlist(){
+ document.querySelectorAll('#wlbody .wltab').forEach(b=>b.onclick=()=>{wlActive=b.dataset.w;renderWatchlist();});
+ document.querySelectorAll('#wlbody .trash').forEach(t=>t.onclick=()=>wlRemove(t.dataset.sym));
+}
 async function liveWatchlist(){
- const m=await apiQuotes(WATCHLIST.map(w=>w.sym));
+ const L=wlRows();if(!L.length)return;
+ const m=await apiQuotes(L.map(w=>w.sym));
  if(!m) return; // no backend → keep mock
- WATCHLIST.forEach(w=>{const d=m[w.sym]; if(d){ if(d.pct!=null)w.pct=d.pct; if(d.low!=null)w.low=d.low; if(d.high!=null)w.high=d.high; if(d.change!=null)w.chg=d.change; if(d.ltp!=null)w.ltp=d.ltp; }});
+ L.forEach(w=>{const d=m[w.sym]; if(d){ if(d.pct!=null)w.pct=d.pct; if(d.low!=null)w.low=d.low; if(d.high!=null)w.high=d.high; if(d.change!=null)w.chg=d.change; if(d.ltp!=null)w.ltp=d.ltp; }});
  const el=document.getElementById('wlbody'); if(el){ el.innerHTML=buildWatchlist(); wireWatchlist(); }
 }
 function renderWatchlist(){
@@ -1058,7 +1124,7 @@ function renderFiiDii(){
  document.getElementById('fdbody').innerHTML=h;
 }
 async function liveFiiDii(){
- try{const r=await fetch('/api/fiidii');if(!r.ok)return;const j=await r.json();if(!j||!j.data||!j.data[0])return;const d=j.data[0];
+ try{const r=await apiFetch('/api/fiidii');if(!r.ok)return;const j=await r.json();if(!j||!j.data||!j.data[0])return;const d=j.data[0];
   FIIDII_TABLE[0]={date:d.date,fb:d.fiiBuy||0,fs:d.fiiSell||0,im:d.fiiNet||0,db:d.diiBuy||0,ds:d.diiSell||0};
   if(d.fiiNet!=null)fiiSeries[fiiSeries.length-1]=d.fiiNet;
   if(d.diiNet!=null)diiSeries[diiSeries.length-1]=d.diiNet;
@@ -1119,7 +1185,7 @@ const greenShade=(v,mx)=>'rgba(22,170,95,'+(0.35+v/mx*0.55).toFixed(2)+')';
 let OA_PCR=0.76, OA_SENT=0.82, OA_FLUX=null, OA_CANDLES=null;
 async function liveOptionApex(){
  try{
-  const [u,o,cnd]=await Promise.all([fetch('/api/universe'),fetch('/api/optionchain'),fetch('/api/candles')]);
+  const [u,o,cnd]=await Promise.all([apiFetch('/api/universe'),apiFetch('/api/optionchain'),apiFetch('/api/candles')]);
   if(u.ok){const j=await u.json();if(j&&j.data){const rows=j.data.filter(d=>d.pct!=null);OA_SENT=rows.length?rows.filter(d=>d.pct>=0).length/rows.length:0.5;OA_FLUX=rows.map(d=>[d.symbol,Math.abs(d.pct),d.pct]).sort((a,b)=>b[1]-a[1]);}}
   if(o.ok){const j=await o.json();if(j&&j.pcr!=null)OA_PCR=Math.max(0,Math.min(1,0.5+(j.pcr-1)*0.5));}
   if(cnd.ok){const j=await cnd.json();if(j&&j.data&&j.data.length)OA_CANDLES=j.data;}
@@ -1196,7 +1262,7 @@ function ocData(){
  return {strikes,atm:OI_ATM,bullsT:strikes.reduce((a,r)=>a+r[1],0),bearsT:strikes.reduce((a,r)=>a+r[2],0),expiry:null};
 }
 async function liveOptionClock(){
- try{const r=await fetch('/api/optionchain');if(!r.ok)return;const j=await r.json();if(!j||!j.strikes)return;
+ try{const r=await apiFetch('/api/optionchain');if(!r.ok)return;const j=await r.json();if(!j||!j.strikes)return;
   OC_LIVE={strikes:j.strikes.map(s=>[s.strike,s.peOI,s.ceOI]),atm:j.atm,totPE:j.totPE,totCE:j.totCE,expiry:j.expiry};
   renderOptionClock();}catch(e){}
 }
@@ -1290,6 +1356,72 @@ function crender(){
  document.getElementById('cclear').onclick=()=>{fields.forEach(f=>{const el=document.getElementById(f[0]);if(el)el.value='';});cresult(c.calc(cstate.seg));};
 }
 crender();
+
+/* ---- Save + previous-data actions (shared by every scanner table) ----
+   ★ saves the row's stock to the active watchlist; the chart icon (or a watchlist
+   name) opens that stock's previous data from /api/candles. */
+function toast(msg){
+ let t=document.getElementById('toast');
+ if(!t){t=document.createElement('div');t.id='toast';document.body.appendChild(t);}
+ t.textContent=msg;t.className='on';clearTimeout(t._h);t._h=setTimeout(()=>t.className='',1800);
+}
+document.addEventListener('click',e=>{
+ const btn=e.target.closest('.actb'), name=e.target.closest('#wlbody .symc');
+ if(!btn&&!name)return;
+ const cell=(btn||name).closest('tr'), sym=cell&&cell.querySelector('.symn b');
+ if(!sym)return;
+ const s=sym.textContent.trim();
+ if(btn&&btn.classList.contains('bm'))wlAdd(s); else openHistory(s);
+});
+
+const H_RANGES=['1D','1M','6M','1Y'];
+let H_SYM=null,H_RANGE='6M',H_REQ=0;
+function closeHistory(){document.getElementById('hmodal').classList.remove('on');}
+document.getElementById('hclose').onclick=closeHistory;
+document.getElementById('hmodal').onclick=e=>{if(e.target.id==='hmodal')closeHistory();};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeHistory();});
+
+async function openHistory(sym,range){
+ H_SYM=sym;H_RANGE=range||H_RANGE;const req=++H_REQ;
+ document.getElementById('hmodal').classList.add('on');
+ document.getElementById('htitle').textContent=sym;
+ document.getElementById('hsub').textContent='Previous data';
+ document.getElementById('hrng').innerHTML=H_RANGES.map(r=>'<button class="'+(r===H_RANGE?'on':'')+'" data-r="'+r+'">'+r+'</button>').join('');
+ document.querySelectorAll('#hrng button').forEach(b=>b.onclick=()=>openHistory(sym,b.dataset.r));
+ document.getElementById('hchart').innerHTML='<div class="hmsg">Loading previous data…</div>';
+ document.getElementById('hstats').innerHTML='';
+ let rows=null,pc=null;
+ try{const r=await apiFetch('/api/candles?symbol='+encodeURIComponent(sym)+'&range='+H_RANGE);if(r.ok){const j=await r.json();rows=j.data;pc=j.prevClose;}}catch(e){}
+ if(req!==H_REQ)return; // a newer request replaced this one
+ if(!rows||!rows.length){document.getElementById('hchart').innerHTML='<div class="hmsg">Previous data loads from the live backend (deployed on Vercel).</div>';return;}
+ const daily=H_RANGE!=='1D', first=rows[0], last=rows[rows.length-1];
+ const prev=daily?(rows.length>1?rows[rows.length-2][4]:first[1]):(pc??first[1]);
+ const base=daily?first[1]:prev, chg=last[4]-base, pct=chg/base*100; // 1D: day change vs previous close
+ const vols=rows.map(r=>r[5]||0), avgVol=vols.reduce((a,b)=>a+b,0)/rows.length;
+ const inr=v=>'₹'+(+v).toLocaleString('en-IN',{maximumFractionDigits:2}), col=chg>=0?'#16c784':'#ea3943';
+ document.getElementById('hsub').textContent=(daily?'Daily candles · ':'5-min candles · ')+rows.length+(daily?' sessions':' bars');
+ document.getElementById('hchart').innerHTML=histSVG(rows,daily);
+ const stats=[['LAST',inr(last[4])],['PREV CLOSE',inr(prev)],[daily?H_RANGE+' CHANGE':'DAY CHANGE','<span style="color:'+col+'">'+(chg>=0?'+':'')+chg.toFixed(2)+' ('+(chg>=0?'+':'')+pct.toFixed(2)+'%)</span>'],
+  [H_RANGE+' HIGH',inr(Math.max(...rows.map(r=>r[2])))],[H_RANGE+' LOW',inr(Math.min(...rows.map(r=>r[3])))],['AVG VOLUME',avgVol?Math.round(avgVol).toLocaleString('en-IN'):'—']];
+ document.getElementById('hstats').innerHTML=stats.map(s=>'<div class="hstat"><div class="k">'+s[0]+'</div><div class="v">'+s[1]+'</div></div>').join('');
+}
+
+function histSVG(rows,daily){
+ const W=780,pl=8,pr=W-62,pt=12,pb=250,vt=264,vb=318,n=rows.length,step=(pr-pl)/n,bw=Math.max(1,step*0.65);
+ const hi=Math.max(...rows.map(r=>r[2])),lo=Math.min(...rows.map(r=>r[3])),rg=(hi-lo)||1,mv=Math.max(1,...rows.map(r=>r[5]||0));
+ const y=v=>pt+(hi-v)/rg*(pb-pt);
+ const lbl=t=>{const d=new Date(t);return daily?d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}):d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});};
+ let s='';
+ for(let k=0;k<=4;k++){const v=lo+rg*k/4,yy=y(v);s+='<line x1="'+pl+'" y1="'+yy.toFixed(1)+'" x2="'+pr+'" y2="'+yy.toFixed(1)+'" stroke="rgba(255,255,255,.06)"/><text x="'+(pr+6)+'" y="'+(yy+4).toFixed(1)+'" font-size="10" fill="#828ba3">'+v.toFixed(1)+'</text>';}
+ rows.forEach((r,i)=>{const o=+r[1],h=+r[2],l=+r[3],c=+r[4],v=+r[5]||0,x=pl+step*i+step/2,col=c>=o?'#16c784':'#ea3b45';
+  s+='<g><title>'+lbl(r[0])+'  O '+o+'  H '+h+'  L '+l+'  C '+c+(v?'  Vol '+v.toLocaleString('en-IN'):'')+'</title>';
+  s+='<line x1="'+x.toFixed(1)+'" y1="'+y(h).toFixed(1)+'" x2="'+x.toFixed(1)+'" y2="'+y(l).toFixed(1)+'" stroke="'+col+'"/>';
+  s+='<rect x="'+(x-bw/2).toFixed(1)+'" y="'+y(Math.max(o,c)).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(1,Math.abs(y(o)-y(c))).toFixed(1)+'" fill="'+col+'"/>';
+  if(v)s+='<rect x="'+(x-bw/2).toFixed(1)+'" y="'+(vb-v/mv*(vb-vt)).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+(v/mv*(vb-vt)).toFixed(1)+'" fill="'+col+'" opacity=".4"/>';
+  s+='</g>';});
+ [0,Math.floor(n*0.25),Math.floor(n*0.5),Math.floor(n*0.75),n-1].forEach(i=>{s+='<text x="'+(pl+step*i+step/2).toFixed(1)+'" y="334" text-anchor="middle" font-size="10" fill="#9aa3b5">'+lbl(rows[i][0])+'</text>';});
+ return '<svg viewBox="0 0 '+W+' 340" width="100%">'+s+'</svg>';
+}
 
 /* view switch — driven by the sidebar */
 const VLABELS={home:'Home',mp:'Market Pulse',insider:'Insider Strategy',swing:'Swing Spectrum',optionclock:'Option Clock',optionapex:'Option Apex',indexmover:'Index Mover',fiidii:'FII / DII',journal:'Trading Journal',watchlist:'Watchlist',ss:'Sector Scope',calc:'Calculator'};

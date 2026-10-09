@@ -1,61 +1,87 @@
 # TradeSaathi — Project Structure & Data Logic
 
-A trading dashboard. **Frontend** is one static page (`preview_pages.html`) that works
-on its own (mock data) and auto-upgrades to **live data** when the `/api` serverless
-functions are reachable (on Vercel). Secrets live only in `.env.local` / Vercel env.
+A trading dashboard. The **frontend** is one static page (`preview_pages.html`) that
+renders instantly with mock data and switches to **live data** as soon as the `/api`
+functions answer. The `/api` functions run on Vercel (or locally via `npm run dev`).
+Secrets live only in `.env.local` / Vercel env — never in the browser or git.
 
 ```
 tradesaathi-navbar/
-├── index.html              # redirect → preview_pages.html (so "/" serves the app on Vercel)
-├── preview_pages.html      # THE APP: sidebar + all module views + inline JS (mock + live wiring)
-├── preview.html            # old sidebar-only mockup (reference)
-├── package.json            # { "type": "module" } — marks /api as ESM Node functions
-├── .env.example            # template of required env vars (NO secrets)
-├── .env.local              # real secrets (gitignored, never pushed)
+├── index.html            # redirect → preview_pages.html ("/" serves the app)
+├── preview_pages.html    # THE APP: sidebar + every module view + inline JS
+├── dev-server.js         # local server: static app + /api functions (npm run dev)
+├── package.json          # "type": "module", script "dev"
+├── vercel.json           # longer timeout for /api/optionchain
+├── .env.example          # list of required env vars (no secrets)
+├── .env.local            # real secrets (gitignored)
+├── STRUCTURE.md          # this file
 │
-├── api/                    # Vercel serverless functions (Node). `_`-prefixed = helper, not a route.
-│   ├── _smartapi.js        # Angel One SmartAPI client: TOTP login, session cache,
-│   │                       #   throttle+retry (rate limits), quoteTokens/quoteFull
-│   ├── _tokens.js          # baked NSE symbol→token map (39 stocks = the scanner universe)
-│   ├── _gemini.js          # Gemini helper (kept; search grounding needs a paid plan)
-│   ├── quote.js            # GET /api/quote?symbols=SBIN,RELIANCE → live quotes
-│   ├── universe.js         # GET /api/universe → batch quotes for all 39 + rfac/turnover/diff
-│   ├── fiidii.js           # GET /api/fiidii → real FII/DII from NSE (cookie bootstrap)
-│   └── news.js             # GET /api/news → market news from Economic Times RSS
+├── api/                  # serverless functions. `_` prefix = shared helper, not a route
+│   ├── _smartapi.js      # Angel One SmartAPI: TOTP login, session cache, throttle+retry,
+│   │                     #   quotes, OI, candles, portfolio
+│   ├── _tokens.js        # baked NSE symbol→token map (39-stock universe) + index tokens
+│   ├── _options.js       # NIFTY option chain from the SmartAPI scrip master (cached)
+│   ├── _gemini.js        # Gemini helper (unused; search grounding needs a paid plan)
+│   ├── quote.js          # /api/quote?symbols=SBIN,TCS     live quotes (watchlist)
+│   ├── universe.js       # /api/universe                   all 39 stocks + rfac/turnover/diff
+│   ├── indices.js        # /api/indices                    NIFTY 50 / BANK / FIN / IT / VIX
+│   ├── optionchain.js    # /api/optionchain                strike-wise CE/PE OI, PCR
+│   ├── candles.js        # /api/candles?symbol=SBIN&range=1D|1M|6M|1Y   previous data
+│   ├── portfolio.js      # /api/portfolio                  holdings/positions/trades P&L
+│   ├── fiidii.js         # /api/fiidii                     FII/DII from NSE
+│   └── news.js           # /api/news                       Economic Times RSS
 │
-└── src/                    # Next.js React scaffold (reference; the live app is preview_pages.html)
+└── src/                  # Next.js React scaffold (reference only)
 ```
 
+## Run it
+| Where | How | Data |
+|---|---|---|
+| Local, live | `npm run dev` → http://localhost:3000 | real (uses `.env.local`) |
+| Local, quick look | Live Server on `preview_pages.html` (:5500) | mock (no `/api`) |
+| Production | Vercel, with the `SMARTAPI_*` env vars set | real |
+
 ## Data sources
-| Need | Source | Why |
+| Need | Source | Note |
 |---|---|---|
-| Live quotes / OHLC / volume | **Angel One SmartAPI** | broker real-time feed (key server-side) |
-| FII / DII | **NSE** `fiidiiTradeReact` | SmartAPI has no FII/DII; NSE is official + free |
-| Market news | **Economic Times RSS** | free, reliable; no key |
-| (optional) summaries | Gemini | only if billing enabled for search grounding |
+| Quotes, OHLC, volume, OI, candles, positions | **Angel One SmartAPI** | key stays server-side |
+| FII / DII | **NSE** `fiidiiTradeReact` | SmartAPI has none; NSE gives only the latest day |
+| News | **Economic Times RSS** | free, no key |
 
-## How each module gets real-time data
-All frontend modules follow one pattern: **render mock immediately → fetch `/api/*` →
-if data, merge + re-render; else keep mock.** A per-view poller refreshes while that view is open.
+## Frontend pattern (every module)
+1. Render mock immediately.
+2. `apiFetch('/api/…')` — one shared, de-duplicated request per endpoint (reused 4s),
+   so modules asking for the same data don't each hit SmartAPI.
+3. If data arrives, merge and re-render; otherwise keep mock.
+4. A poller refreshes only while that view is open.
 
-| Module | Endpoint | Logic |
+| Module | Endpoint(s) | Logic |
 |---|---|---|
-| Watchlist | `/api/quote` | live LTP, %chg, day range per saved symbol |
-| Market Pulse | `/api/universe` | scanners = universe sorted by %chg (gainers/losers), rfac (intraday/high-power), turnover, diff. `rfac = |%chg| × volume-weight` |
-| Sector Scope | `/api/universe` | `SECTOR_MAP` groups universe → sector score = avg %chg; heatmap tiles = stock %chg; detail = sector's stocks |
-| FII / DII | `/api/fiidii` | latest real FII/DII buy/sell/net (₹ Cr) |
-| Insider / Swing scanners | `/api/universe` (+ candles) | live %chg now; setup filters (below) need daily candles |
-| Index Mover | `/api/universe` + index | per-stock points ≈ %chg × weight (weights approximate) |
-| Option Clock / Apex | option-chain OI | strike-wise OI (heavy — option tokens) |
-| Trading Journal | SmartAPI positions | today's realised/unrealised P&L |
+| Home | indices, news | live index ticker + market news |
+| Watchlist | quote | W1–W5 saved lists (browser `localStorage`); 🗑 removes; click a name → previous data |
+| Market Pulse | universe | gainers/losers by %chg; intraday/high-power by rfac; turnover; diff |
+| Insider / Swing | universe | live %chg; heatmaps sized by \|%chg\|; Delivery shows live volume |
+| Sector Scope | universe | `SECTOR_MAP` → sector score = avg %chg, heatmap, drill-down table |
+| Index Mover | universe, indices | live NIFTY 50 + drivers ranked by %chg (weights not public) |
+| FII / DII | fiidii | latest real FII/DII row + chart bar |
+| Option Clock | optionchain | CE (bears) / PE (bulls) OI per strike, ATM, net position, PCR |
+| Option Apex | optionchain, universe, candles | live NIFTY candles, PCR + breadth gauges, money flux |
+| Trading Journal | portfolio | P&L stats from the account's positions/trades |
 
-## Scanner setup definitions (standard; TradeFinder's exact rules are proprietary)
-- **NR7** — day with the narrowest high−low range of the last 7 sessions.
-- **10 / 50 Day BO** — price closes above the highest high of the last 10 / 50 sessions.
-- **Momentum Spike (5/10 min)** — % move on volume above its average.
-- **Day H/L Reversal** — price makes a new day high/low then reverses.
-- **Contraction BO** — breakout after a volatility contraction (shrinking ranges).
-- **Delivery %** — delivered qty ÷ traded qty (from NSE; not in SmartAPI).
+**Row actions (all scanner tables):** ★ saves the stock to the active watchlist; the chart
+icon opens **previous data** — candles for 1D (latest session, change vs previous close),
+1M, 6M, 1Y with last / prev close / period change / high / low / avg volume.
 
-> Setup filters that need history use SmartAPI historical candles (`getCandleData`),
-> computed server-side and cached (daily setups change once/day).
+`rfac = |%chg| × (0.5 + 0.5 × volume ÷ max volume) × 100` (activity score).
+
+## Not available (shown honestly in the UI)
+- **Delivery %** — end-of-day data; NSE blocks it (403). Volume is shown live instead.
+- **FII/DII history** — NSE returns only the latest day; history needs a database.
+- **Global indices** — SmartAPI covers Indian markets only.
+
+## Scanner setup definitions (TradeFinder's exact rules are not public)
+- **NR7** — narrowest high−low range of the last 7 sessions.
+- **10 / 50 Day BO** — close above the highest high of the last 10 / 50 sessions.
+- **Momentum spike** — % move on above-average volume.
+- **Day H/L reversal** — new day high/low followed by a reversal.
+- **Contraction BO** — breakout after shrinking ranges.

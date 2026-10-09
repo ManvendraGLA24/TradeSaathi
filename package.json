@@ -3,5 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "TradeSaathi dashboard — static preview + Angel One SmartAPI serverless functions"
+  "description": "TradeSaathi dashboard — static preview + Angel One SmartAPI serverless functions",
+  "scripts": {
+    "dev": "node dev-server.js"
+  }
 }
