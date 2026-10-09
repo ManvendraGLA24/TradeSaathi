@@ -14,7 +14,7 @@ function rel(dateStr) {
 
 export default async function handler(req, res) {
   try {
-    const r = await fetch(FEED, { headers: { 'User-Agent': UA, 'Accept': 'application/rss+xml, application/xml, text/xml' } });
+    const r = await fetch(FEED, { headers: { 'User-Agent': UA, 'Accept': 'application/rss+xml, application/xml, text/xml' }, signal: AbortSignal.timeout(8000) });
     const xml = await r.text();
     const items = (xml.match(/<item[\s\S]*?<\/item>/gi) || []).slice(0, 12).map((block) => ({
       title: tag(block, 'title'),

@@ -239,6 +239,9 @@
   .calhd{text-align:center;color:var(--muted);font-size:13px;font-weight:700;padding-bottom:4px}
   .calcell{min-height:60px;border:1px solid var(--border);border-radius:8px;padding:8px;color:#fff;font-weight:700;font-size:14px;background:#0c1220}
   .calcell.empty{background:transparent;border:none}
+  .calcell.today{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2) inset}
+  .calcell .pl{display:block;font-size:11px;font-weight:800;margin-top:6px}
+  .tbmonths.wk{gap:3px}.tbmonths.wk span{flex:0 0 9px;width:9px;min-width:0;text-align:left;white-space:nowrap;overflow:visible}
   .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:26px 40px}
   .stat{text-align:center}
   .stat .k{color:var(--muted);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:10px}
@@ -268,6 +271,7 @@
   .impill.down{background:rgba(234,57,67,.16);color:#ea3b45}
   .pager{display:flex;align-items:center;gap:16px;padding:14px 2px 2px;color:var(--muted);font-size:13px;font-weight:600;flex-wrap:wrap}
   .pager .rowsel{background:var(--raise);border:1px solid var(--border);border-radius:8px;padding:4px 10px;color:var(--text)}
+  .fdpg{color:var(--text);font:inherit;font-size:12px;font-weight:700;cursor:pointer}.fdpg:disabled{opacity:.35;cursor:default}
   .pager .pgnav{margin-left:auto;display:flex;align-items:center;gap:14px}
   .explain{color:var(--muted);font-size:14px;line-height:1.7}
   .explain h3{color:#fff;font-size:16px;margin:4px 0 8px;font-weight:800}
@@ -291,6 +295,8 @@
   .octrack .fill{position:absolute;left:6%;right:6%;top:0;height:6px;background:var(--accent2);border-radius:999px}
   .octrack .h{position:absolute;top:-4px;width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid var(--accent2);transform:translateX(-50%)}
   .octime{font-size:12px;color:var(--text);font-weight:700}
+  .ocsel{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 8px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+  .ocgo:disabled{opacity:.6;cursor:wait}
   .ocgo{background:var(--accent2);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-weight:800;font-size:13px;cursor:pointer}
   .ochd{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
   .ochd b{color:#fff;font-size:16px;font-weight:800}
@@ -472,6 +478,10 @@ function apiFetch(url){
  p.catch(()=>_apiCache.delete(url));
  return p.then(r=>r.clone());
 }
+/* Live data loads when a view is opened (onView), not all at startup: browsers allow
+   only ~6 requests per host at once, so fetching hidden modules delays the visible one. */
+const VIEW_LOADERS={};
+function onView(v,fn){(VIEW_LOADERS[v]||=[]).push(fn);}
 /* sidebar items */
 const P='<svg width="18" height="18" viewBox="0 0 24 24">',E='</svg>';
 const lk='<span class="lk"><svg width="14" height="14" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>';
@@ -599,7 +609,7 @@ function renderMP(){
  document.getElementById('mpbody').innerHTML=h;
 }
 renderMP();
-liveMP();
+onView('mp',liveMP);
 setInterval(()=>{const el=document.getElementById('mp');if(el&&el.classList.contains('on'))liveMP();},8000);
 
 /* sector heatmap */
@@ -717,7 +727,7 @@ function renderSectorScope(){
  }
 }
 renderSectorScope();
-liveSectorScope();
+onView('ss',liveSectorScope);
 setInterval(()=>{const el=document.getElementById('ss');if(el&&el.classList.contains('on'))liveSectorScope();},10000);
 
 /* ---- Insider Strategy scanners ---- */
@@ -782,13 +792,11 @@ function renderInsider(){
  document.getElementById('insbody').innerHTML=h;
 }
 renderInsider();
-liveInsider();
+onView('insider',liveInsider);
 setInterval(()=>{const el=document.getElementById('insider');if(el&&el.classList.contains('on'))liveInsider();},8000);
 
 /* ---- Index Mover ---- */
-/* === DATA LAYER (mock). Replace INDEX_MOVERS with the live Angel One SmartAPI feed.
-   Hero stats, gainers/losers split, donut and drivers list are ALL derived from this
-   one array — swap the source and everything updates, no render change. === */
+/* Mock fallback (no backend). Live data replaces it via liveIndexMover(). */
 const INDEX_MOVERS=[
  {sym:'DRREDDY',   pct:0.17,  pts:13.27, color:'#6c4ad9'},
  {sym:'AXISBANK',  pct:-1.97, pts:7.54,  color:'#a51f56'},
@@ -808,7 +816,7 @@ const INDEX_MOVERS=[
  {sym:'BPCL',      pct:-0.03, pts:-0.03, color:'#e8b22d'},
 ];
 
-function buildDonut(data){
+function buildDonut(data,ctr,ctrCol){
  const W=600,H=440,cx=300,cy=220,r=120,sw=38,C=2*Math.PI*r;
  const total=data.reduce((s,d)=>s+Math.abs(d.pts),0)||1;
  let off=0,segs='';const marks=[];
@@ -829,47 +837,45 @@ function buildDonut(data){
    lab+='<text x="'+(side==='right'?lx+5:lx-5)+'" y="'+(ly+4).toFixed(1)+'" text-anchor="'+(side==='right'?'start':'end')+'" font-size="12.5" font-weight="800"><tspan fill="#cfd6e6">'+m.d.sym+': </tspan><tspan fill="'+m.col+'">'+m.d.pts.toFixed(2)+'</tspan></text>';
   });
  });
- const centre='<text x="'+cx+'" y="'+(cy-3)+'" text-anchor="middle" font-size="16" font-weight="800" fill="#fff">NIFTY 50</text><text x="'+cx+'" y="'+(cy+19)+'" text-anchor="middle" font-size="14" font-weight="800" fill="#16c784">0.00 pts</text>';
+ const centre='<text x="'+cx+'" y="'+(cy-3)+'" text-anchor="middle" font-size="16" font-weight="800" fill="#fff">NIFTY 50</text><text x="'+cx+'" y="'+(cy+19)+'" text-anchor="middle" font-size="14" font-weight="800" fill="'+(ctrCol||'#16c784')+'">'+(ctr||'0.00 pts')+'</text>';
  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="max-width:600px">'+segs+lab+centre+'</svg>';
 }
 
-let IM_LIVE=null, IM_IDX=null;
+/* Live = /api/indexmover (all 50 NIFTY stocks; pts = weight × %chg × NIFTY prev close,
+   scaled to the real index move) + /api/candles (today's NIFTY line). */
+let IM_LIVE=null, IM_IDX=null, IM_SPARK=null;
 async function liveIndexMover(){
  try{
-  const [u,i]=await Promise.all([apiFetch('/api/universe'),apiFetch('/api/indices')]);
-  if(u.ok){const j=await u.json();if(j&&j.data)IM_LIVE=j.data.filter(d=>d.pct!=null).map(d=>({sym:d.symbol,pct:d.pct,pts:+(d.pct).toFixed(2),color:mpColor(d.symbol)}));}
-  if(i.ok){const j=await i.json();if(j&&j.data){const n=j.data.find(x=>x.symbol==='NIFTY 50');if(n)IM_IDX=n;}}
-  if(IM_LIVE||IM_IDX)renderIndexMover();
+  const [m,c]=await Promise.all([apiFetch('/api/indexmover'),apiFetch('/api/candles')]);
+  if(m.ok){const j=await m.json();if(j&&j.data){IM_LIVE=j.data.map(d=>({sym:d.symbol,pct:d.pct??0,pts:d.pts,w:d.weight,color:mpColor(d.symbol)}));IM_IDX=j.nifty;}}
+  if(c.ok){const j=await c.json();if(j&&j.data&&j.data.length>1)IM_SPARK=j.data.map(r=>+r[4]);}
+  if(IM_LIVE)renderIndexMover();
  }catch(e){}
 }
+const sparkPts=v=>{const mn=Math.min(...v),rg=(Math.max(...v)-mn)||1;return v.map((x,i)=>(i/(v.length-1)*200).toFixed(1)+','+(56-(x-mn)/rg*52).toFixed(1)).join(' ');};
 function renderIndexMover(){
  const data=IM_LIVE||INDEX_MOVERS;
  const ranked=[...data].sort((a,b)=>Math.abs(b.pts)-Math.abs(a.pts));
  const nifty=IM_IDX, nchg=nifty?(nifty.change??0):0, npct=nifty?(nifty.pct??0):0, nup=nchg>=0;
  const nv=nifty&&nifty.ltp!=null?(+nifty.ltp).toLocaleString('en-IN',{maximumFractionDigits:2}):'0.00';
- const ncol=nup?'#16c784':'#ea3943';
- const gain=data.filter(d=>d.pts>=0).length,lose=data.length-gain;
- const gpct=(gain/(gain+lose)*100).toFixed(1);
+ const ncol=nup?'#16c784':'#ea3943', sgn=(x,d)=>(x>=0?'+':'')+x.toFixed(d);
+ const gain=data.filter(d=>d.pct>=0).length,lose=data.length-gain,gpct=(gain/(gain+lose)*100).toFixed(1);
  // donut: top 9 by |pts| + OTHERS (net of the rest)
- const sorted=[...data].sort((a,b)=>Math.abs(b.pts)-Math.abs(a.pts));
- const rest=sorted.slice(9).reduce((s,d)=>s+d.pts,0);
- const donutData=[...sorted.slice(0,9),{sym:'OTHERS',pts:+rest.toFixed(2)}].sort((a,b)=>b.pts-a.pts);
- const maxAbs=Math.max(...data.map(d=>Math.abs(d.pts)));
- const drv=ranked.map((d,i)=>{
-  const col=d.pts>=0?'#16c784':'#ea3943',w=(Math.abs(d.pts)/maxAbs*100).toFixed(1);
-  return '<div class="drv"><span class="rk">'+String(i+1).padStart(2,'0')+'</span><span class="ii" style="background:'+d.color+'">'+d.sym.slice(0,2)+'</span><span class="nm"><b>'+d.sym+'</b><small class="'+(d.pct>=0?'up':'down')+'">'+(d.pct>=0?'+':'')+d.pct.toFixed(2)+'%</small></span><span class="track"><span class="fill" style="width:'+w+'%;background:'+col+'"></span></span><span class="val" style="color:'+col+'">'+(d.pts>=0?'+':'')+d.pts.toFixed(2)+'</span></div>';
- }).join('');
- let h='';
- h+='<div class="imhero"><svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><polyline points="0,44 35,40 70,34 105,30 140,22 170,24 200,16" fill="none" stroke="#16c784" stroke-width="2"/></svg>';
+ const rest=ranked.slice(9).reduce((s,d)=>s+d.pts,0);
+ const donutData=[...ranked.slice(0,9),{sym:'OTHERS',pts:+rest.toFixed(2)}].sort((a,b)=>b.pts-a.pts);
+ const maxAbs=Math.max(...data.map(d=>Math.abs(d.pts)))||1;
+ const drv=ranked.map((d,i)=>{const col=d.pts>=0?'#16c784':'#ea3943',w=(Math.abs(d.pts)/maxAbs*100).toFixed(1);
+  return '<div class="drv"><span class="rk">'+String(i+1).padStart(2,'0')+'</span><span class="ii" style="background:'+d.color+'">'+d.sym.slice(0,2)+'</span><span class="nm"><b>'+d.sym+'</b><small class="'+(d.pct>=0?'up':'down')+'">'+sgn(d.pct,2)+'%'+(d.w!=null?' <span class="mut">· w '+d.w+'%</span>':'')+'</small></span><span class="track"><span class="fill" style="width:'+w+'%;background:'+col+'"></span></span><span class="val" style="color:'+col+'">'+sgn(d.pts,2)+'</span></div>';}).join('');
+ let h='<div class="imhero"><svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><polyline points="'+(IM_SPARK?sparkPts(IM_SPARK):'0,44 35,40 70,34 105,30 140,22 170,24 200,16')+'" fill="none" stroke="'+ncol+'" stroke-width="2"/></svg>';
  h+='<div><div class="idx">NIFTY 50</div><div class="idxv">'+nv+'</div></div>';
- h+='<div class="idxr"><div class="p" style="color:'+ncol+'">'+(nup?'UP ':'DOWN ')+Math.abs(nchg).toFixed(2)+' PTS</div><div class="p" style="color:'+ncol+'">'+(nup?'+':'')+npct.toFixed(2)+'%</div></div></div>';
- h+='<div class="imcard imgl"><div class="t">Gainers / Losers</div><div class="glbar"><span class="g" style="width:'+gpct+'%"></span><span class="l" style="width:'+(100-gpct)+'%"></span></div><div class="glleg"><span class="gi">● Gainer : '+gain+'</span><span class="li">Losers : '+lose+' ●</span></div></div>';
- h+='<div class="imcard"><div class="imchip"><span class="b">50</span> NIFTY 50</div><div class="donutwrap">'+buildDonut(donutData)+'</div></div>';
- h+='<div class="imcard"><div class="sect2"><b>Drivers</b> <span class="up" style="font-weight:800">0.00 pts</span><div class="sub">Ranked by contribution · bar width is point share</div></div>'+drv+'</div>';
+ h+='<div class="idxr"><div class="p" style="color:'+ncol+'">'+(nup?'UP ':'DOWN ')+Math.abs(nchg).toFixed(2)+' PTS</div><div class="p" style="color:'+ncol+'">'+sgn(npct,2)+'%</div></div></div>';
+ h+='<div class="imcard imgl"><div class="t">Gainers / Losers'+(IM_LIVE?' · NIFTY 50 constituents':'')+'</div><div class="glbar"><span class="g" style="width:'+gpct+'%"></span><span class="l" style="width:'+(100-gpct)+'%"></span></div><div class="glleg"><span class="gi">● Gainer : '+gain+'</span><span class="li">Losers : '+lose+' ●</span></div></div>';
+ h+='<div class="imcard"><div class="imchip"><span class="b">50</span> NIFTY 50</div><div class="donutwrap">'+buildDonut(donutData,sgn(nchg,2)+' pts',ncol)+'</div></div>';
+ h+='<div class="imcard"><div class="sect2"><b>Drivers</b> <span style="font-weight:800;color:'+ncol+'">'+sgn(nchg,2)+' pts</span><div class="sub">Ranked by contribution in index points · bar width is point share'+(IM_LIVE?' · weights: NIFTY 50 constituents as on 19-08-2026':'')+'</div></div>'+drv+'</div>';
  document.getElementById('imbody').innerHTML=h;
 }
 renderIndexMover();
-liveIndexMover();
+onView('indexmover',liveIndexMover);
 setInterval(()=>{const el=document.getElementById('indexmover');if(el&&el.classList.contains('on'))liveIndexMover();},8000);
 
 /* ---- Swing Spectrum scanners ---- */
@@ -952,27 +958,43 @@ function renderSwing(){
  document.getElementById('swbody').innerHTML=h;
 }
 renderSwing();
-liveSwing();
+onView('swing',liveSwing);
 setInterval(()=>{const el=document.getElementById('swing');if(el&&el.classList.contains('on'))liveSwing();},8000);
 
-/* ---- Trading Journal ---- */
-/* === P&L / trades come live from Angel One (the user's actual executed trades).
-   Tradebook heatmap, calendar P&L and stats all derive from that trade history —
-   mock/empty here; wire the trade feed and these fill in automatically. === */
+/* ---- Trading Journal ----
+   Stats = live /api/portfolio (SmartAPI positions + today's trades). SmartAPI has no
+   past-trade history, so each day's real P&L is saved in this browser when the journal
+   loads; the tradebook heatmap + calendar are built from that saved history. */
+const JH_KEY='ts_journal_pnl_v1';
+let JH=(()=>{try{return JSON.parse(localStorage.getItem(JH_KEY)||'{}');}catch(e){return {};}})();
+const isoDay=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const inrJ=v=>(v<0?'-₹':'₹')+Math.abs(v).toLocaleString('en-IN',{maximumFractionDigits:0});
+function pnlColor(v,max){if(v==null)return '#1a2133';const a=(0.3+0.7*Math.min(1,Math.abs(v)/max)).toFixed(2);return v>=0?'rgba(22,199,132,'+a+')':'rgba(234,57,67,'+a+')';}
 function renderJournal(){
- // Tradebook heatmap (GitHub-style; empty until trade data arrives)
- let tb='<div class="tbwrap"><div class="tbdays">'+['Mo','','We','','Fr','','Su'].map(d=>'<span>'+d+'</span>').join('')+'</div><div class="tbcol"><div class="tbgrid">';
- for(let w=0;w<52;w++){tb+='<div class="tbweek">'+Array(7).fill('<div class="tbcell"></div>').join('')+'</div>';}
- tb+='</div><div class="tbmonths">'+['Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sept','Oct'].map(m=>'<span>'+m+'</span>').join('')+'</div></div></div>';
+ const today=new Date();today.setHours(0,0,0,0);
+ const max=Math.max(1,...Object.values(JH).map(Math.abs));
+ // Tradebook heatmap: 53 weeks (Mon→Sun columns) ending this week
+ const start=new Date(today);start.setDate(start.getDate()-(today.getDay()+6)%7-52*7);
+ let grid='',months='',lastM=-1;
+ for(let w=0;w<53;w++){
+  const wk=new Date(start);wk.setDate(start.getDate()+w*7);
+  months+='<span>'+(wk.getMonth()!==lastM?wk.toLocaleString('en-IN',{month:'short'}):'')+'</span>';lastM=wk.getMonth();
+  grid+='<div class="tbweek">';
+  for(let d=0;d<7;d++){const day=new Date(wk);day.setDate(wk.getDate()+d);const k=isoDay(day),v=JH[k];
+   grid+=day>today?'<div class="tbcell" style="visibility:hidden"></div>':'<div class="tbcell" style="background:'+pnlColor(v,max)+'" title="'+k+(v!=null?' · '+inrJ(v):' · no data')+'"></div>';}
+  grid+='</div>';
+ }
+ let tb='<div class="tbwrap"><div class="tbdays">'+['Mo','','We','','Fr','','Su'].map(d=>'<span>'+d+'</span>').join('')+'</div><div class="tbcol"><div class="tbgrid">'+grid+'</div><div class="tbmonths wk">'+months+'</div></div></div>';
  tb+='<div class="tblegend">Max Loss <i style="background:#ea3943"></i><i style="background:#f0695f"></i><i style="background:#f3a39b"></i><i style="background:#9ad8b5"></i><i style="background:#46c088"></i><i style="background:#16a862"></i> Max Profit</div>';
- // Calendar — October 2026 (Oct 1 = Thursday → offset 3 from Monday)
- const names=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
- let cal='<div class="calgrid">'+names.map(d=>'<div class="calhd">'+d+'</div>').join('');
- const offset=3,daysIn=31;
+ const saved=Object.keys(JH).length;
+ tb+='<div style="color:var(--muted);font-size:12px;margin-top:8px">'+(saved?saved+' trading day'+(saved>1?'s':'')+' saved.':'No saved days yet.')+' Each day\'s P&L from your Angel One account is saved here when you open the journal.</div>';
+ // Calendar: current month, with saved daily P&L
+ const y=today.getFullYear(),m=today.getMonth(),first=new Date(y,m,1),offset=(first.getDay()+6)%7,daysIn=new Date(y,m+1,0).getDate();
+ let cal='<div class="calgrid">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>'<div class="calhd">'+d+'</div>').join('');
  for(let i=0;i<offset;i++)cal+='<div class="calcell empty"></div>';
- for(let d=1;d<=daysIn;d++)cal+='<div class="calcell">'+d+'</div>';
- const filled=offset+daysIn,trail=(7-filled%7)%7;
- for(let i=0;i<trail;i++)cal+='<div class="calcell empty"></div>';
+ for(let d=1;d<=daysIn;d++){const k=isoDay(new Date(y,m,d)),v=JH[k];
+  cal+='<div class="calcell'+(d===today.getDate()?' today':'')+'">'+d+(v!=null?'<span class="pl" style="color:'+(v>=0?'#16c784':'#ea3943')+'">'+inrJ(v)+'</span>':'')+'</div>';}
+ for(let i=0;i<(7-(offset+daysIn)%7)%7;i++)cal+='<div class="calcell empty"></div>';
  cal+='</div>';
  // Statistics — live from /api/portfolio when available, else —
  const STAT_MAP={'Total P&L':'totalPnl','Total Trades':'totalTrades','Biggest Win':'biggestWin','Biggest Loss':'biggestLoss','Avg. Winner':'avgWinner','Avg. Loser':'avgLoser','Risk to Reward':'riskReward','Avg. P&L':'avgPnl'};
@@ -980,15 +1002,17 @@ function renderJournal(){
  const stats='<div class="statgrid">'+Object.keys(STAT_MAP).map(k=>{const v=JOURNAL_STATS?JOURNAL_STATS[STAT_MAP[k]]:null;const col=(/P&L|Win|Winner/.test(k)&&v>0)?'#16c784':(/Loss|Loser/.test(k)&&v<0)?'#ea3943':'#fff';return '<div class="stat"><div class="k">'+k+' <span class="i">i</span></div><div class="v" style="color:'+col+'">'+jval(k,v)+'</div></div>';}).join('')+'</div>';
  document.getElementById('jbody').innerHTML=
   '<div class="tjcard"><div class="tjtitle">Tradebook</div>'+tb+'</div>'+
-  '<div class="tjcard"><div class="tjtitle">October 2026</div>'+cal+'</div>'+
-  '<div class="tjcard"><div class="tjtitle">Statistics</div>'+stats+'</div>';
+  '<div class="tjcard"><div class="tjtitle">'+today.toLocaleString('en-IN',{month:'long',year:'numeric'})+'</div>'+cal+'</div>'+
+  '<div class="tjcard"><div class="tjtitle">Statistics · today</div>'+stats+'</div>';
 }
 let JOURNAL_STATS=null;
 async function liveJournal(){
- try{const r=await apiFetch('/api/portfolio');if(!r.ok)return;const j=await r.json();if(!j||!j.stats)return;JOURNAL_STATS=j.stats;renderJournal();}catch(e){}
+ try{const r=await apiFetch('/api/portfolio');if(!r.ok)return;const j=await r.json();if(!j||!j.stats)return;JOURNAL_STATS=j.stats;
+  if(j.stats.totalTrades>0||(j.counts&&j.counts.positions>0)){JH[isoDay(new Date())]=j.stats.totalPnl;try{localStorage.setItem(JH_KEY,JSON.stringify(JH));}catch(e){}}
+  renderJournal();}catch(e){}
 }
 renderJournal();
-liveJournal();
+onView('journal',liveJournal);
 setInterval(()=>{const el=document.getElementById('journal');if(el&&el.classList.contains('on'))liveJournal();},15000);
 
 /* ---- Watchlist ---- */
@@ -1063,77 +1087,64 @@ function renderWatchlist(){
  wireWatchlist();
  liveWatchlist();
 }
-renderWatchlist();
+document.getElementById('wlbody').innerHTML=buildWatchlist();wireWatchlist();
+onView('watchlist',renderWatchlist);
 setInterval(()=>{ const s=document.getElementById('watchlist'); if(s&&s.classList.contains('on')) liveWatchlist(); }, 8000);
 
 /* ---- FII / DII ---- */
-/* === DATA LAYER (mock). Replace with live Angel One / exchange FII-DII feed.
-   Charts + table + nets all derive from FIIDII_TABLE (+ generated history). === */
 const fdFmt=n=>Math.round(n).toLocaleString('en-IN');
-const FIIDII_TABLE=[ /* latest first; buy/sell in ₹ Cr, IN MARKET given */
- {date:'26-07-2023',fb:8700.87, fs:7778.03, im:1392.94, db:6470.5,ds:6000},
- {date:'25-07-2023',fb:10471.84,fs:9383.08, im:755.06,  db:5000,  ds:5330.2},
- {date:'24-07-2023',fb:9719.18, fs:9802.14, im:851.91,  db:6934,  ds:6000},
- {date:'21-07-2023',fb:10020.40,fs:12019.17,im:-708.04, db:7290.3,ds:6000},
- {date:'20-07-2023',fb:11423.73,fs:8052.83, im:3177.88, db:5809.4,ds:6000},
- {date:'19-07-2023',fb:8973.07, fs:7807.60, im:-969.07, db:4000,  ds:6100.4},
- {date:'18-07-2023',fb:11070.61,fs:8954.77, im:798.28,  db:5000,  ds:6300.7},
- {date:'17-07-2023',fb:8286.36, fs:8213.36, im:137.34,  db:6640.2,ds:6000},
- {date:'14-07-2023',fb:12486.00,fs:9849.57, im:1863.98, db:5229.9,ds:6000},
- {date:'13-07-2023',fb:10128.06,fs:7890.13, im:1041.25, db:4899.5,ds:6000},
-];
-// chart series: 40 days; last 10 = table (chronological), earlier 30 generated
-const fiiSeries=[],diiSeries=[];
-for(let i=0;i<30;i++){fiiSeries.push(Math.round(Math.sin(i*0.6)*3500+Math.cos(i*1.4)*2200));diiSeries.push(Math.round(Math.cos(i*0.7)*1100-Math.sin(i*1.2)*800));}
-fiiSeries[21]=12350;fiiSeries[22]=9200;
-[...FIIDII_TABLE].reverse().forEach(r=>{fiiSeries.push(Math.round(r.fb-r.fs));diiSeries.push(Math.round(r.db-r.ds));});
-const sumSeries=fiiSeries.map((v,i)=>v+diiSeries[i]);
-const FDX=['31-05-2023','08-06-2023','15-06-2023','23-06-2023','03-07-2023','11-07-2023','18-07-2023','26-07-2023'];
-
-function fdPanel(series,maxV,title,yTop){
- const pl=52,pr=672,ph=96,zeroY=yTop+ph/2,scale=(ph/2)/maxV,n=series.length,step=(pr-pl)/n,bw=7;
- let s='<text x="'+pl+'" y="'+(yTop-6)+'" font-size="11" fill="#9aa3b5" font-weight="700">'+title+'</text>';
- s+='<text x="'+(pl-8)+'" y="'+(yTop+8)+'" text-anchor="end" font-size="10" fill="#828ba3">'+fdFmt(maxV)+'</text>';
- s+='<text x="'+(pl-8)+'" y="'+(zeroY+3)+'" text-anchor="end" font-size="10" fill="#828ba3">0</text>';
- s+='<text x="'+(pl-8)+'" y="'+(yTop+ph+3)+'" text-anchor="end" font-size="10" fill="#828ba3">-'+fdFmt(maxV)+'</text>';
- s+='<line x1="'+pl+'" y1="'+zeroY+'" x2="'+pr+'" y2="'+zeroY+'" stroke="rgba(255,255,255,.07)"/>';
- series.forEach((v,i)=>{const cx=pl+step*i+step/2,x=cx-bw/2;let vy=zeroY-v*scale;vy=Math.max(yTop,Math.min(yTop+ph,vy));const col=v>=0?'#4a90e2':'#ec5b93',y=Math.min(zeroY,vy),hh=Math.max(Math.abs(vy-zeroY),1.5);
-  s+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw+'" height="'+hh.toFixed(1)+'" rx="1.5" fill="'+col+'"/>';});
- return s;
-}
-function buildFiiCharts(){
- const pl=52,pr=672;let xl='';
- FDX.forEach((d,k)=>{const x=pl+(pr-pl)*k/(FDX.length-1);xl+='<text x="'+x.toFixed(1)+'" y="452" text-anchor="middle" font-size="10.5" fill="#9aa3b5">'+d+'</text>';});
- return '<svg viewBox="0 0 700 470" width="100%">'+fdPanel(fiiSeries,12350,'FII Net',28)+fdPanel(diiSeries,2964,'DII Net',174)+fdPanel(sumSeries,11329,'FII + DII',320)+xl+'</svg>';
-}
-let FD_LIVE=false;
-function renderFiiDii(){
- let h='<div class="imcard"><div class="fihd"><b>FII / DII</b> 💡 <span class="dot2"></span><span class="activeb">ACTIVE</span><span class="howto" style="margin-left:4px">How to use ▶</span></div>'+buildFiiCharts()+'</div>';
- // table
- const net=v=>'<span class="'+(v>=0?'netpos':'netneg')+'">'+(v>=0?'':'')+fdFmt(v)+'</span>';
- const body=FIIDII_TABLE.map((r,i)=>{const fn=r.fb-r.fs,dn=r.db-r.ds;
-  return '<tr'+(i===0?' style="background:rgba(79,140,255,.10)"':'')+'><td class="dt" style="padding-left:14px;font-weight:700;color:#fff">'+r.date+'</td><td class="metric">'+r.fb.toLocaleString('en-IN')+'</td><td class="metric">'+r.fs.toLocaleString('en-IN')+'</td><td class="r">'+net(fn)+'</td><td class="r"><span class="impill '+(r.im>=0?'up':'down')+'">'+fdFmt(r.im)+'</span></td><td class="metric">'+r.db.toLocaleString('en-IN')+'</td><td class="metric">'+r.ds.toLocaleString('en-IN')+'</td><td class="r">'+net(dn)+'</td><td class="r">'+net(fn+dn)+'</td></tr>';
- }).join('');
- h+='<div class="imcard"><div class="fihd"><b>Capital Market Activity (in Cr.)</b>'+(FD_LIVE?' <span class="activeb" style="background:rgba(22,199,132,.18);color:#4ecb8f">● NSE LIVE</span>':'')+' 💡</div><div class="tblscroll"><table><thead><tr><th>DATE ▾</th><th class="r">FII BUY</th><th class="r">FII SELL</th><th class="r">FII NET</th><th class="r">IN MARKET</th><th class="r">DII BUY</th><th class="r">DII SELL</th><th class="r">DII NET</th><th class="r">FII+DII</th></tr></thead><tbody>'+body+'</tbody></table></div>'+
-  '<div class="pager"><span>Total Count: 40</span><span class="pgnav">Rows <span class="rowsel">10 ▾</span> 1–10 of 40 <span class="howto" style="padding:4px 10px">Prev</span> 1/4 <span class="howto" style="padding:4px 10px">Next</span></span></div></div>';
- // explainer
- h+='<div class="imcard"><div class="explain"><h3>What is FII / DII ?</h3><p>Any market participant\'s buy or sell decision results in an impact on the price of any stock. People like you and me, who individually invest in the stock market, all come under the retail category. The investment institutions like mutual funds, pension funds fall under the foreign institutional investors (FII) or domestic institutional investors (DII) category.</p>'+
+const FD_EXPLAIN='<div class="imcard"><div class="explain"><h3>What is FII / DII ?</h3><p>Any market participant\'s buy or sell decision results in an impact on the price of any stock. People like you and me, who individually invest in the stock market, all come under the retail category. The investment institutions like mutual funds, pension funds fall under the foreign institutional investors (FII) or domestic institutional investors (DII) category.</p>'+
   '<h4>FII</h4><p>FII full form is Foreign Institutional Investor. FIIs are an institution or fund house incorporated outside India. They are also registered with SEBI and make an investment in the Indian security market. FIIs are also known as FPIs (Foreign Portfolio Investor). Example: EURO PACIFIC GROWTH FUND.</p>'+
   '<h4>DII</h4><p>DIIs are an investor or fund houses based in the same country where they are investing their money. Example: Mutual Fund Houses.</p>'+
   '<h4>How to use FII / DII data ?</h4><p>Compare to DIIs investment, we focus more on FII investment and activities because of their research quality. It is no need to mention that purchasing power of FIIs is much bigger than DIIs. That is why FIIs are named as market movers because their buying and selling quantity moves the market direction.</p><p>If FII are buying, usually markets remains bullish and it goes up and similarly if FII are selling that means that market will fall or it is going to give a down move in comes days.</p></div></div>';
+/* Mock fallback when there is no backend (local :5500). Live = /api/fiidii:
+   latest day from NSE (gross buy/sell) + ~30 days of net flows from Moneycontrol. */
+const FD_MOCK=[
+ {date:'2023-07-26',fiiBuy:8700.87,fiiSell:7778.03,fiiNet:922.84,diiBuy:6470.5,diiSell:6000,diiNet:470.5},
+ {date:'2023-07-25',fiiBuy:10471.84,fiiSell:9383.08,fiiNet:1088.76,diiBuy:5000,diiSell:5330.2,diiNet:-330.2},
+ {date:'2023-07-24',fiiBuy:9719.18,fiiSell:9802.14,fiiNet:-82.96,diiBuy:6934,diiSell:6000,diiNet:934},
+ {date:'2023-07-21',fiiBuy:10020.4,fiiSell:12019.17,fiiNet:-1998.77,diiBuy:7290.3,diiSell:6000,diiNet:1290.3},
+ {date:'2023-07-20',fiiBuy:11423.73,fiiSell:8052.83,fiiNet:3370.9,diiBuy:5809.4,diiSell:6000,diiNet:-190.6},
+];
+let FD_ROWS=FD_MOCK, FD_LIVE=false, FD_PAGE=0;
+const FD_PER=10;
+const fdDate=iso=>iso.split('-').reverse().join('-');
+const fdNice=v=>{if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const f=v/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p;};
+function fdPanel(series,title,yTop){
+ const pl=58,pr=672,ph=96,zeroY=yTop+ph/2,maxV=fdNice(Math.max(1,...series.map(Math.abs))),scale=(ph/2)/maxV,n=series.length,step=(pr-pl)/n,bw=Math.max(3,Math.min(12,step*0.6));
+ let s='<text x="'+pl+'" y="'+(yTop-6)+'" font-size="11" fill="#9aa3b5" font-weight="700">'+title+'</text>';
+ [[maxV,yTop+8],[0,zeroY+3],[-maxV,yTop+ph+3]].forEach(([v,y])=>{s+='<text x="'+(pl-8)+'" y="'+y+'" text-anchor="end" font-size="10" fill="#828ba3">'+fdFmt(v)+'</text>';});
+ s+='<line x1="'+pl+'" y1="'+zeroY+'" x2="'+pr+'" y2="'+zeroY+'" stroke="rgba(255,255,255,.07)"/>';
+ series.forEach((v,i)=>{const x=pl+step*i+step/2-bw/2,vy=zeroY-v*scale,col=v>=0?'#4a90e2':'#ec5b93';
+  s+='<rect x="'+x.toFixed(1)+'" y="'+Math.min(zeroY,vy).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(Math.abs(vy-zeroY),1.5).toFixed(1)+'" rx="1.5" fill="'+col+'"><title>'+title+': ₹'+fdFmt(v)+' Cr</title></rect>';});
+ return s;
+}
+function buildFiiCharts(){
+ const rows=[...FD_ROWS].reverse(), fii=rows.map(r=>r.fiiNet||0), dii=rows.map(r=>r.diiNet||0), sum=fii.map((v,i)=>v+dii[i]);
+ const pl=58,pr=672,n=rows.length,step=(pr-pl)/n;let xl='';
+ [...new Set([0,Math.round((n-1)*0.25),Math.round((n-1)*0.5),Math.round((n-1)*0.75),n-1])].forEach(i=>{xl+='<text x="'+(pl+step*i+step/2).toFixed(1)+'" y="452" text-anchor="middle" font-size="10.5" fill="#9aa3b5">'+fdDate(rows[i].date)+'</text>';});
+ return '<svg viewBox="0 0 700 470" width="100%">'+fdPanel(fii,'FII Net',28)+fdPanel(dii,'DII Net',174)+fdPanel(sum,'FII + DII',320)+xl+'</svg>';
+}
+function renderFiiDii(){
+ const v=x=>x==null?'<span class="mut">—</span>':Number(x).toLocaleString('en-IN',{maximumFractionDigits:2});
+ const net=x=>x==null?'<span class="mut">—</span>':'<span class="'+(x>=0?'netpos':'netneg')+'">'+fdFmt(x)+'</span>';
+ const total=FD_ROWS.length,pages=Math.max(1,Math.ceil(total/FD_PER));FD_PAGE=Math.min(FD_PAGE,pages-1);
+ const page=FD_ROWS.slice(FD_PAGE*FD_PER,FD_PAGE*FD_PER+FD_PER);
+ let h='<div class="imcard"><div class="fihd"><b>FII / DII</b> 💡 <span class="dot2"></span><span class="activeb">'+(FD_LIVE?total+' DAYS · LIVE':'SAMPLE')+'</span><span class="howto" style="margin-left:4px">How to use ▶</span></div>'+buildFiiCharts()+'</div>';
+ const body=page.map((r,i)=>'<tr'+(FD_PAGE===0&&i===0?' style="background:rgba(79,140,255,.10)"':'')+'><td class="dt" style="padding-left:14px;font-weight:700;color:#fff">'+fdDate(r.date)+'</td><td class="metric">'+v(r.fiiBuy)+'</td><td class="metric">'+v(r.fiiSell)+'</td><td class="r">'+net(r.fiiNet)+'</td><td class="metric">'+v(r.diiBuy)+'</td><td class="metric">'+v(r.diiSell)+'</td><td class="r">'+net(r.diiNet)+'</td><td class="r">'+net(r.fiiNet!=null&&r.diiNet!=null?r.fiiNet+r.diiNet:null)+'</td><td class="r">'+(r.niftyClose!=null?v(r.niftyClose)+' <span class="impill '+(r.niftyPct>=0?'up':'down')+'">'+(r.niftyPct>=0?'+':'')+r.niftyPct+'%</span>':'<span class="mut">—</span>')+'</td></tr>').join('');
+ h+='<div class="imcard"><div class="fihd"><b>Capital Market Activity (in Cr.)</b>'+(FD_LIVE?' <span class="activeb" style="background:rgba(22,199,132,.18);color:#4ecb8f">● NSE + MONEYCONTROL</span>':'')+' 💡</div><div class="tblscroll"><table><thead><tr><th>DATE ▾</th><th class="r">FII BUY</th><th class="r">FII SELL</th><th class="r">FII NET</th><th class="r">DII BUY</th><th class="r">DII SELL</th><th class="r">DII NET</th><th class="r">FII+DII</th><th class="r">NIFTY</th></tr></thead><tbody>'+body+'</tbody></table></div>'+
+  '<div class="pager"><span>Total Count: '+total+'</span><span class="pgnav">Rows '+FD_PER+' · '+(FD_PAGE*FD_PER+1)+'–'+Math.min(total,FD_PAGE*FD_PER+FD_PER)+' of '+total+' <button class="howto fdpg" data-d="-1" style="padding:4px 10px"'+(FD_PAGE===0?' disabled':'')+'>Prev</button> '+(FD_PAGE+1)+'/'+pages+' <button class="howto fdpg" data-d="1" style="padding:4px 10px"'+(FD_PAGE>=pages-1?' disabled':'')+'>Next</button></span></div>'+
+  (FD_LIVE?'<div style="color:var(--muted);font-size:12px;margin-top:8px">Gross buy/sell is published for the latest day (NSE); earlier days show net flows.</div>':'')+'</div>';
+ h+=FD_EXPLAIN;
  document.getElementById('fdbody').innerHTML=h;
+ document.querySelectorAll('#fdbody .fdpg').forEach(b=>b.onclick=()=>{FD_PAGE+=+b.dataset.d;renderFiiDii();});
 }
 async function liveFiiDii(){
- try{const r=await apiFetch('/api/fiidii');if(!r.ok)return;const j=await r.json();if(!j||!j.data||!j.data[0])return;const d=j.data[0];
-  FIIDII_TABLE[0]={date:d.date,fb:d.fiiBuy||0,fs:d.fiiSell||0,im:d.fiiNet||0,db:d.diiBuy||0,ds:d.diiSell||0};
-  if(d.fiiNet!=null)fiiSeries[fiiSeries.length-1]=d.fiiNet;
-  if(d.diiNet!=null)diiSeries[diiSeries.length-1]=d.diiNet;
-  for(let i=0;i<sumSeries.length;i++)sumSeries[i]=fiiSeries[i]+diiSeries[i];
-  FD_LIVE=true;renderFiiDii();
- }catch(e){}
+ try{const r=await apiFetch('/api/fiidii');if(!r.ok)return;const j=await r.json();if(!j||!j.data||!j.data.length)return;
+  FD_ROWS=j.data;FD_LIVE=true;renderFiiDii();}catch(e){}
 }
 renderFiiDii();
-liveFiiDii();
+onView('fiidii',liveFiiDii);
 setInterval(()=>{const el=document.getElementById('fiidii');if(el&&el.classList.contains('on'))liveFiiDii();},60000);
 
 /* ---- Option Apex ---- */
@@ -1182,12 +1193,12 @@ function gauge(val){
 }
 const MONEYFLUX=[['ONGC',96],['TATASTEEL',90],['NTPC',86],['MARUTI',62],['HINDALCO',58],['COALINDIA',46],['JSWSTEEL',42],['SBILIFE',38],['ADANIENT',35],['AXISBANK',32],['INDUSIND',30],['BAJAJFINSV',27],['BPCL',25],['EICHERMOT',22],['UPL',20],['TATAMOTORS',18],['POWERGRID',16],['APOLLOHOSP',14],['BAJFINANCE',12]];
 const greenShade=(v,mx)=>'rgba(22,170,95,'+(0.35+v/mx*0.55).toFixed(2)+')';
-let OA_PCR=0.76, OA_SENT=0.82, OA_FLUX=null, OA_CANDLES=null;
+let OA_PCR=0.76, OA_SENT=0.82, OA_FLUX=null, OA_CANDLES=null, OA_EXP=null;
 async function liveOptionApex(){
  try{
   const [u,o,cnd]=await Promise.all([apiFetch('/api/universe'),apiFetch('/api/optionchain'),apiFetch('/api/candles')]);
   if(u.ok){const j=await u.json();if(j&&j.data){const rows=j.data.filter(d=>d.pct!=null);OA_SENT=rows.length?rows.filter(d=>d.pct>=0).length/rows.length:0.5;OA_FLUX=rows.map(d=>[d.symbol,Math.abs(d.pct),d.pct]).sort((a,b)=>b[1]-a[1]);}}
-  if(o.ok){const j=await o.json();if(j&&j.pcr!=null)OA_PCR=Math.max(0,Math.min(1,0.5+(j.pcr-1)*0.5));}
+  if(o.ok){const j=await o.json();if(j&&j.pcr!=null)OA_PCR=Math.max(0,Math.min(1,0.5+(j.pcr-1)*0.5));if(j&&j.expiry)OA_EXP=j.expiry;}
   if(cnd.ok){const j=await cnd.json();if(j&&j.data&&j.data.length)OA_CANDLES=j.data;}
   renderOptionApex();
  }catch(e){}
@@ -1195,8 +1206,8 @@ async function liveOptionApex(){
 function renderOptionApex(){
  let h='<div class="oafilters">';
  h+='<div class="sel"><span><span class="lbl">INDEX</span>Nifty50</span><span>▾</span></div>';
- h+='<div class="sel"><span><span class="lbl">TIME</span>3m</span><span>▾</span></div>';
- h+='<div class="sel"><span><span class="lbl">EXP</span>Sep-04 Expiry in 2 Days</span><span>▾</span></div>';
+ h+='<div class="sel"><span><span class="lbl">TIME</span>'+(OA_CANDLES?'5m · today':'3m')+'</span></div>';
+ h+='<div class="sel"><span><span class="lbl">EXP</span>'+(OA_EXP||'Sep-04 Expiry in 2 Days')+'</span></div>';
  h+='<div class="sel"><span><span class="lbl">Chart Type:</span>🕯️</span></div></div>';
  h+='<div class="imcard">'+buildCandles()+'</div>';
  h+='<div class="imcard"><div class="gauges"><div class="gauge">'+gauge(OA_SENT)+'<div class="gl">Sentimental Dial 💡</div></div><div class="gauge">'+gauge(OA_PCR)+'<div class="gl">PCR Dial 💡</div></div></div>';
@@ -1208,13 +1219,11 @@ function renderOptionApex(){
  document.getElementById('oabody').innerHTML=h;
 }
 renderOptionApex();
-liveOptionApex();
+onView('optionapex',liveOptionApex);
 setInterval(()=>{const el=document.getElementById('optionapex');if(el&&el.classList.contains('on'))liveOptionApex();},20000);
 
 /* ---- Option Clock ---- */
-/* === DATA LAYER (mock, k = thousands). Replace OI_STRIKES with live Angel One
-   option-chain OI. OI Clock bars, Net Position, PCR donut & stat cards all derive
-   from this one array. === */
+/* Mock fallback (no backend), k = thousands. */
 const OI_ATM=19350;
 const OI_STRIKES=[ /* [strike, bulls(Put OI chg) k, bears(Call OI chg) k] */
  [19850,29,15],[19800,12,104],[19750,47,20],[19700,3,114],[19650,66,30],[19600,10,141],
@@ -1222,29 +1231,30 @@ const OI_STRIKES=[ /* [strike, bulls(Put OI chg) k, bears(Call OI chg) k] */
  [19250,117,23],[19200,175,24],[19150,38,5],[19100,76,9],[19050,37,10],[19000,93,8],
  [18950,58,6],[18900,76,7],[18850,32,5],
 ];
-const fmtOI=n=>{n=+n||0;return n>=1e7?(n/1e7).toFixed(1)+'Cr':n>=1e5?(n/1e5).toFixed(1)+'L':n>=1000?(n/1000).toFixed(0)+'k':String(Math.round(n));};
+const fmtOI=n=>{n=+n||0;const a=Math.abs(n),s=n<0?'-':'';return s+(a>=1e7?(a/1e7).toFixed(1)+'Cr':a>=1e5?(a/1e5).toFixed(1)+'L':a>=1000?(a/1000).toFixed(0)+'k':String(Math.round(a)));};
 const niceCeil=v=>{if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const f=v/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p;};
+const niceRange=vals=>{const mx=Math.max(0,...vals),mn=Math.min(0,...vals);return [mn<0?-niceCeil(-mn):0, mx>0?niceCeil(mx):(mn<0?0:1)];};
+// OI change per strike: bars grow left/right from zero. r = [strike, bulls(PE chg), bears(CE chg)]
 function buildOIClock(strikes,atm){
- const pt=16,pb=476,x0=58,xe=662,n=strikes.length,rowH=(pb-pt)/n;
- const xmax=niceCeil(Math.max(1,...strikes.map(r=>Math.max(r[1],r[2])))),sc=(xe-x0)/xmax;
+ const pt=16,pb=476,x0=64,xe=662,n=strikes.length,rowH=(pb-pt)/n;
+ const [lo,hi]=niceRange(strikes.flatMap(r=>[r[1],r[2]])),X=v=>x0+(v-lo)/(hi-lo)*(xe-x0),z=X(0);
  let s='';
- for(let k=0;k<=5;k++){const t=xmax*k/5,x=x0+t*sc;s+='<line x1="'+x.toFixed(1)+'" y1="'+pt+'" x2="'+x.toFixed(1)+'" y2="'+pb+'" stroke="rgba(255,255,255,.05)"/><text x="'+x.toFixed(1)+'" y="'+(pb+15)+'" text-anchor="middle" font-size="10" fill="#828ba3">'+(t===0?'0':fmtOI(t))+'</text>';}
- strikes.forEach((r,i)=>{const stk=r[0],bull=r[1],bear=r[2],ry=pt+i*rowH,mid=ry+rowH/2,bh=Math.min(7,rowH/2-1);
-  s+='<text x="'+(x0-8)+'" y="'+(mid+3).toFixed(1)+'" text-anchor="end" font-size="10" fill="#9aa3b5" font-weight="600">'+stk+'</text>';
-  const by=mid-bh-0.5,gy=mid+0.5,bw=bear*sc,gw=bull*sc;
-  s+='<rect x="'+x0+'" y="'+by.toFixed(1)+'" width="'+Math.max(bw,1).toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2" fill="#f0706e"/><text x="'+(x0+bw+4).toFixed(1)+'" y="'+(by+bh).toFixed(1)+'" font-size="9" fill="#f1a8a6" font-weight="700">'+fmtOI(bear)+'</text>';
-  s+='<rect x="'+x0+'" y="'+gy.toFixed(1)+'" width="'+Math.max(gw,1).toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2" fill="#4ecb8f"/><text x="'+(x0+gw+4).toFixed(1)+'" y="'+(gy+bh).toFixed(1)+'" font-size="9" fill="#92e0b7" font-weight="700">'+fmtOI(bull)+'</text>';});
- const atmI=strikes.findIndex(r=>r[0]===atm),ay=atmI>=0?pt+atmI*rowH+rowH/2:pt;
+ for(let k=0;k<=5;k++){const t=lo+(hi-lo)*k/5,x=X(t);s+='<line x1="'+x.toFixed(1)+'" y1="'+pt+'" x2="'+x.toFixed(1)+'" y2="'+pb+'" stroke="rgba(255,255,255,'+(Math.abs(t)<1e-9?'.18':'.05')+')"/><text x="'+x.toFixed(1)+'" y="'+(pb+15)+'" text-anchor="middle" font-size="10" fill="#828ba3">'+fmtOI(t)+'</text>';}
+ strikes.forEach((r,i)=>{const mid=pt+i*rowH+rowH/2,bh=Math.min(7,rowH/2-1);
+  s+='<text x="'+(x0-8)+'" y="'+(mid+3).toFixed(1)+'" text-anchor="end" font-size="10" fill="#9aa3b5" font-weight="600">'+r[0]+'</text>';
+  [[r[2],mid-bh-0.5,'#f0706e','#f1a8a6'],[r[1],mid+0.5,'#4ecb8f','#92e0b7']].forEach(([v,y,fill,txt])=>{const xv=X(v),neg=v<0;
+   s+='<rect x="'+Math.min(z,xv).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(Math.abs(xv-z),1).toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2" fill="'+fill+'"/><text x="'+(neg?xv-4:xv+4).toFixed(1)+'" y="'+(y+bh).toFixed(1)+'" text-anchor="'+(neg?'end':'start')+'" font-size="9" fill="'+txt+'" font-weight="700">'+fmtOI(v)+'</text>';});});
+ const atmI=strikes.findIndex(r=>r[0]===atm),ay=pt+atmI*rowH+rowH/2;
  if(atmI>=0)s+='<line x1="'+x0+'" y1="'+ay.toFixed(1)+'" x2="'+xe+'" y2="'+ay.toFixed(1)+'" stroke="#6b7488" stroke-dasharray="4 4"/><text x="'+(xe+3)+'" y="'+(ay+3).toFixed(1)+'" font-size="10" fill="#9aa3b5" font-weight="700">ATM</text>';
  return '<svg viewBox="0 0 706 496" width="100%">'+s+'</svg>';
 }
+// Σ OI change: Bulls = put writing (PE), Bears = call writing (CE). Can be negative (unwinding).
 function buildNetPos(bulls,bears){
- const W=680,pt=16,pb=250,pl=78,pr=W-10,vmax=niceCeil(Math.max(1,bulls,bears)),yFor=v=>pt+(1-v/vmax)*(pb-pt),zy=yFor(0);
+ const pt=16,pb=250,pl=78,pr=670,[lo,hi]=niceRange([bulls,bears]),Y=v=>pt+(hi-v)/(hi-lo)*(pb-pt),zy=Y(0);
  let s='';
- for(let k=0;k<=7;k++){const t=vmax*k/7,y=yFor(t);s+='<line x1="'+pl+'" y1="'+y.toFixed(1)+'" x2="'+pr+'" y2="'+y.toFixed(1)+'" stroke="rgba(255,255,255,.05)"/><text x="'+(pl-8)+'" y="'+(y+3).toFixed(1)+'" text-anchor="end" font-size="10" fill="#828ba3">'+fmtOI(t)+'</text>';}
- const bw=70,c1=pl+(pr-pl)*0.3,c2=pl+(pr-pl)*0.68,y1=yFor(bulls),y2=yFor(bears);
- s+='<rect x="'+(c1-bw/2)+'" y="'+y1.toFixed(1)+'" width="'+bw+'" height="'+(zy-y1).toFixed(1)+'" rx="4" fill="#4ecb8f"/><text x="'+c1+'" y="'+(zy+17)+'" text-anchor="middle" font-size="12" fill="#9aa3b5" font-weight="700">Bulls Chg</text>';
- s+='<rect x="'+(c2-bw/2)+'" y="'+y2.toFixed(1)+'" width="'+bw+'" height="'+(zy-y2).toFixed(1)+'" rx="4" fill="#f0706e"/><text x="'+c2+'" y="'+(zy+17)+'" text-anchor="middle" font-size="12" fill="#9aa3b5" font-weight="700">Bears Chg</text>';
+ for(let k=0;k<=6;k++){const t=lo+(hi-lo)*k/6,y=Y(t);s+='<line x1="'+pl+'" y1="'+y.toFixed(1)+'" x2="'+pr+'" y2="'+y.toFixed(1)+'" stroke="rgba(255,255,255,'+(Math.abs(t)<1e-9?'.18':'.05')+')"/><text x="'+(pl-8)+'" y="'+(y+3).toFixed(1)+'" text-anchor="end" font-size="10" fill="#828ba3">'+fmtOI(t)+'</text>';}
+ [[bulls,0.3,'#4ecb8f','Bulls Chg (Put OI)'],[bears,0.68,'#f0706e','Bears Chg (Call OI)']].forEach(([v,f,col,lbl])=>{const c=pl+(pr-pl)*f,yv=Y(v);
+  s+='<rect x="'+(c-35)+'" y="'+Math.min(zy,yv).toFixed(1)+'" width="70" height="'+Math.max(Math.abs(yv-zy),1.5).toFixed(1)+'" rx="4" fill="'+col+'"/><text x="'+c+'" y="'+(v>=0?yv-6:yv+14).toFixed(1)+'" text-anchor="middle" font-size="12" fill="#fff" font-weight="800">'+fmtOI(v)+'</text><text x="'+c+'" y="'+(pb+18)+'" text-anchor="middle" font-size="12" fill="#9aa3b5" font-weight="700">'+lbl+'</text>';});
  return '<svg viewBox="0 0 680 275" width="100%">'+s+'</svg>';
 }
 function buildPCRDonut(bp,rp,pcr){
@@ -1255,36 +1265,46 @@ function buildPCRDonut(bp,rp,pcr){
  s+='<text x="44" y="'+(cy+4)+'" text-anchor="end" font-size="12" fill="#cfd6e6" font-weight="700">'+rp.toFixed(2)+'%</text><text x="276" y="'+(cy+4)+'" font-size="12" fill="#cfd6e6" font-weight="700">'+bp.toFixed(2)+'%</text>';
  return '<svg viewBox="0 0 320 300" width="100%" style="max-width:360px">'+s+'</svg>';
 }
-let OC_LIVE=null;
+/* Live = /api/oichange?from&to (OI change per strike in that window of the latest session,
+   plus total OI for the PCR). The time selects + Go pick the window. */
+const OC_TIMES=[];for(let m=555;m<=930;m+=15)OC_TIMES.push(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'));
+let OC_LIVE=null, OC_WIN={from:'09:15',to:'15:30'}, OC_BUSY=false;
 function ocData(){
- if(OC_LIVE)return {strikes:OC_LIVE.strikes,atm:OC_LIVE.atm,bullsT:OC_LIVE.totPE,bearsT:OC_LIVE.totCE,expiry:OC_LIVE.expiry};
+ if(OC_LIVE)return OC_LIVE;
  const strikes=OI_STRIKES.map(r=>[r[0],r[1]*1000,r[2]*1000]);
- return {strikes,atm:OI_ATM,bullsT:strikes.reduce((a,r)=>a+r[1],0),bearsT:strikes.reduce((a,r)=>a+r[2],0),expiry:null};
+ const pe=strikes.reduce((a,r)=>a+r[1],0),ce=strikes.reduce((a,r)=>a+r[2],0);
+ return {strikes,atm:OI_ATM,peChg:pe,ceChg:ce,totPE:pe,totCE:ce,expiry:null,session:null};
 }
 async function liveOptionClock(){
- try{const r=await apiFetch('/api/optionchain');if(!r.ok)return;const j=await r.json();if(!j||!j.strikes)return;
-  OC_LIVE={strikes:j.strikes.map(s=>[s.strike,s.peOI,s.ceOI]),atm:j.atm,totPE:j.totPE,totCE:j.totCE,expiry:j.expiry};
-  renderOptionClock();}catch(e){}
+ OC_BUSY=true;renderOptionClock();
+ try{const r=await apiFetch('/api/oichange?from='+OC_WIN.from+'&to='+OC_WIN.to);
+  if(r.ok){const j=await r.json();if(j&&j.strikes&&j.strikes.length)OC_LIVE={strikes:j.strikes.map(s=>[s.strike,s.peChg,s.ceChg]),atm:j.atm,peChg:j.peChg,ceChg:j.ceChg,totPE:j.totPE,totCE:j.totCE,expiry:j.expiry,session:j.session};}
+ }catch(e){}
+ OC_BUSY=false;renderOptionClock();
 }
 function renderOptionClock(){
- const d=ocData(),bullsT=d.bullsT,bearsT=d.bearsT;
- const pcr=bearsT?(bullsT/bearsT).toFixed(2):'0.00',bp=(bullsT+bearsT)?bullsT/(bullsT+bearsT)*100:50,rp=100-bp;
- const expLabel=d.expiry?d.expiry:'Oct-10 (Exp Tomorrow)';
- let h='<div class="occtrl"><div class="sel" style="flex:0 0 auto"><span><span class="lbl">INDEX</span>Nifty50</span><span>▾</span></div>';
- h+='<div class="sel" style="flex:0 0 auto"><span><span class="lbl">EXP</span>'+expLabel+'</span><span>▾</span></div>';
- h+='<div class="ocslider"><span class="octime">09:15</span><div class="octrack"><div class="fill"></div><div class="h" style="left:6%"></div><div class="h" style="left:94%"></div></div><span class="octime">15:30</span></div>';
- h+='<button class="ocgo">Go</button></div>';
- h+='<div class="imcard"><div class="ochd"><b>OI Clock</b> 💡 <span class="ocatm">ATM '+d.atm.toLocaleString("en-IN")+'</span><span class="oclegend"><span class="b"><i style="background:#f0706e"></i>Bears</span><span class="b"><i style="background:#4ecb8f"></i>Bulls</span></span></div>'+buildOIClock(d.strikes,d.atm)+'</div>';
- h+='<div class="imcard"><div class="fihd"><b>Net Position</b> <span style="color:var(--muted);font-size:12px;font-weight:700">&#916; OI</span></div>'+buildNetPos(bullsT,bearsT)+'</div>';
+ const d=ocData(),pcr=d.totCE?(d.totPE/d.totCE).toFixed(2):'0.00',bp=(d.totPE+d.totCE)?d.totPE/(d.totPE+d.totCE)*100:50,rp=100-bp;
+ const opts=sel=>OC_TIMES.map(t=>'<option'+(t===sel?' selected':'')+'>'+t+'</option>').join('');
+ let h='<div class="occtrl"><div class="sel" style="flex:0 0 auto"><span><span class="lbl">INDEX</span>Nifty50</span></div>';
+ h+='<div class="sel" style="flex:0 0 auto"><span><span class="lbl">EXP</span>'+(d.expiry||'—')+'</span></div>';
+ h+='<div class="ocslider"><span class="lbl">FROM</span><select class="ocsel" id="ocfrom">'+opts(OC_WIN.from)+'</select><span class="lbl">TO</span><select class="ocsel" id="octo">'+opts(OC_WIN.to)+'</select></div>';
+ h+='<button class="ocgo" id="ocgo"'+(OC_BUSY?' disabled':'')+'>'+(OC_BUSY?'Loading…':'Go')+'</button></div>';
+ h+='<div class="imcard"><div class="ochd"><b>OI Clock</b> 💡 <span class="ocatm">ATM '+d.atm.toLocaleString('en-IN')+'</span><span style="color:var(--muted);font-size:12px;font-weight:700">OI change '+OC_WIN.from+' → '+OC_WIN.to+(d.session?' · '+d.session:' · sample')+'</span><span class="oclegend"><span class="b"><i style="background:#f0706e"></i>Bears (Call OI)</span><span class="b"><i style="background:#4ecb8f"></i>Bulls (Put OI)</span></span></div>'+buildOIClock(d.strikes,d.atm)+'</div>';
+ h+='<div class="imcard"><div class="fihd"><b>Net Position</b> <span style="color:var(--muted);font-size:12px;font-weight:700">&#916; OI '+OC_WIN.from+' → '+OC_WIN.to+'</span></div>'+buildNetPos(d.peChg,d.ceChg)+'</div>';
  h+='<div class="imcard"><div class="fihd"><b>Distribution</b> <span style="color:var(--muted);font-size:12px;font-weight:700">TOTAL OI</span></div>';
- h+='<div class="ocdlegend"><span><i style="background:#4ecb8f"></i>Bulls Total OI</span><span><i style="background:#f0706e"></i>Bears Total OI</span></div>';
+ h+='<div class="ocdlegend"><span><i style="background:#4ecb8f"></i>Bulls Total OI (Puts)</span><span><i style="background:#f0706e"></i>Bears Total OI (Calls)</span></div>';
  h+='<div style="display:flex;justify-content:center">'+buildPCRDonut(bp,rp,pcr)+'</div>';
- h+='<div class="ocstats"><div class="ocstat"><div class="k" style="color:#4ecb8f">Bulls · '+Math.round(bp)+'%</div><div class="v">'+bullsT.toLocaleString("en-IN")+'</div></div><div class="ocstat"><div class="k" style="color:#f0706e">Bears · '+Math.round(rp)+'%</div><div class="v">'+bearsT.toLocaleString("en-IN")+'</div></div></div></div>';
+ h+='<div class="ocstats"><div class="ocstat"><div class="k" style="color:#4ecb8f">Bulls · '+Math.round(bp)+'%</div><div class="v">'+d.totPE.toLocaleString('en-IN')+'</div></div><div class="ocstat"><div class="k" style="color:#f0706e">Bears · '+Math.round(rp)+'%</div><div class="v">'+d.totCE.toLocaleString('en-IN')+'</div></div></div></div>';
  document.getElementById('ocbody').innerHTML=h;
+ document.getElementById('ocgo').onclick=()=>{
+  const f=document.getElementById('ocfrom').value,t=document.getElementById('octo').value;
+  if(f>=t){toast('"From" must be earlier than "To"');return;}
+  OC_WIN={from:f,to:t};liveOptionClock();
+ };
 }
 renderOptionClock();
-liveOptionClock();
-setInterval(()=>{const el=document.getElementById('optionclock');if(el&&el.classList.contains('on'))liveOptionClock();},20000);
+onView('optionclock',liveOptionClock);
+setInterval(()=>{const el=document.getElementById('optionclock');if(el&&el.classList.contains('on')&&!OC_BUSY)liveOptionClock();},60000);
 
 /* ---- Calculator ---- */
 const CINR=n=>'₹'+(isFinite(n)?Math.round(n):0).toLocaleString('en-IN');
@@ -1430,6 +1450,7 @@ function showView(v){
   document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id===v));
   document.querySelectorAll('.sb .it').forEach(x=>x.classList.toggle('act',x.dataset.v===v));
   const pt=document.getElementById('ptitle'); if(pt&&VLABELS[v])pt.textContent=VLABELS[v];
+  (VIEW_LOADERS[v]||[]).forEach(fn=>fn());
 }
 document.querySelectorAll('.sb .it[data-v]').forEach(a=>a.onclick=()=>showView(a.dataset.v));
 document.querySelectorAll('#tools .card[data-v]').forEach(a=>{if(a.dataset.v)a.onclick=()=>showView(a.dataset.v);});

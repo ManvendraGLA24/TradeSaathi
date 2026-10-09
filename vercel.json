@@ -1,5 +1,6 @@
 {
   "functions": {
-    "api/optionchain.js": { "maxDuration": 30 }
+    "api/optionchain.js": { "maxDuration": 30 },
+    "api/oichange.js": { "maxDuration": 60 }
   }
 }

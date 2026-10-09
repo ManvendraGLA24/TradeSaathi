@@ -43,7 +43,7 @@ async function rawReq(method, path, headers, body) {
       const wait = Math.max(0, lastAt + GAP - Date.now());
       if (wait) await sleep(wait);
       lastAt = Date.now();
-      const opts = { method, headers };
+      const opts = { method, headers, signal: AbortSignal.timeout(15000) };
       if (body !== undefined) opts.body = JSON.stringify(body);
       const res = await fetch(BASE + path, opts);
       const text = await res.text();
@@ -111,6 +111,12 @@ export async function portfolio() {
   return { stats, counts: { positions: positions.length, holdings: holdings.length, trades: trades.length } };
 }
 
+// Raw instrument search (e.g. all NIFTY option contracts on NFO).
+export async function searchScrip(exchange, query) {
+  const j = await authed('/rest/secure/angelbroking/order/v1/searchScrip', { exchange, searchscrip: query });
+  return Array.isArray(j?.data) ? j.data : [];
+}
+
 const tokenCache = new Map();
 export async function resolveToken(exchange, symbol) {
   // Baked map first — no API call for known NSE symbols.
@@ -140,12 +146,19 @@ export async function quoteTokens(exchange, items) {
   });
 }
 
+const pad2 = (x) => String(x).padStart(2, '0');
+const fmtDT = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+const dtRange = (days) => { const to = new Date(); return { fromdate: fmtDT(new Date(to - days * 864e5)), todate: fmtDT(to) }; };
+
 // Historical candles: [[ts, o, h, l, c, v], ...].
 export async function candles(exchange, token, interval = 'FIVE_MINUTE', days = 2) {
-  const pad = (x) => String(x).padStart(2, '0');
-  const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  const to = new Date(), from = new Date(to.getTime() - days * 24 * 3600 * 1000);
-  const j = await authed('/rest/secure/angelbroking/historical/v1/getCandleData', { exchange, symboltoken: token, interval, fromdate: fmt(from), todate: fmt(to) });
+  const j = await authed('/rest/secure/angelbroking/historical/v1/getCandleData', { exchange, symboltoken: token, interval, ...dtRange(days) });
+  return Array.isArray(j?.data) ? j.data : [];
+}
+
+// Historical open interest (F&O): [{ time, oi }, ...].
+export async function oiHistory(exchange, token, interval = 'FIVE_MINUTE', days = 4) {
+  const j = await authed('/rest/secure/angelbroking/historical/v1/getOIData', { exchange, symboltoken: token, interval, ...dtRange(days) });
   return Array.isArray(j?.data) ? j.data : [];
 }
 
