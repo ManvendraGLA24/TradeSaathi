@@ -11,27 +11,16 @@ tradesaathi-navbar/
 ├── preview_pages.html    # THE APP: sidebar + every module view + inline JS
 ├── dev-server.js         # local server: static app + /api functions (npm run dev)
 ├── package.json          # "type": "module", script "dev"
-├── vercel.json           # longer timeouts for /api/optionchain and /api/oichange
+├── vercel.json           # timeout for the single API catch-all function
 ├── .env.example          # list of required env vars (no secrets)
 ├── .env.local            # real secrets (gitignored)
 ├── STRUCTURE.md          # this file
 │
-├── api/                  # serverless functions. `_` prefix = shared helper, not a route
-│   ├── _smartapi.js      # Angel One SmartAPI: TOTP login, session cache, throttle+retry,
-│   │                     #   quotes, OI, candles, portfolio
-│   ├── _tokens.js        # symbol→token maps: 39-stock universe, indices, NIFTY 50 (+ weights)
-│   ├── _options.js       # NIFTY option contracts (one SmartAPI search, cached), OI + OI change
-│   ├── _gemini.js        # Gemini helper (unused; search grounding needs a paid plan)
-│   ├── quote.js          # /api/quote?symbols=SBIN,TCS     live quotes (watchlist)
-│   ├── universe.js       # /api/universe                   all 39 stocks + rfac/turnover/diff
-│   ├── indices.js        # /api/indices                    NIFTY 50 / BANK / FIN / IT / VIX
-│   ├── optionchain.js    # /api/optionchain                strike-wise CE/PE OI, PCR
-│   ├── oichange.js       # /api/oichange?from=09:15&to=15:30   OI change per strike in a time window
-│   ├── indexmover.js     # /api/indexmover                 NIFTY 50 constituents + index points
-│   ├── candles.js        # /api/candles?symbol=SBIN&range=1D|1M|6M|1Y   previous data
-│   ├── portfolio.js      # /api/portfolio                  holdings/positions/trades P&L
-│   ├── fiidii.js         # /api/fiidii                     30 days FII/DII (NSE + Moneycontrol)
-│   └── news.js           # /api/news                       Economic Times RSS
+├── api/
+│   └── [...path].js      # one Vercel function dispatching all /api/* routes
+├── lib/
+│   ├── api/              # shared auth, SmartAPI, options, tokens, Gemini, WebSocket helpers
+│   └── routes/           # handlers for /api/quote, /api/universe, /api/indices, etc.
 │
 └── src/                  # Next.js React scaffold (reference only)
 ```

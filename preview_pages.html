@@ -651,14 +651,19 @@ async function apiFetch(url){
  p.catch(()=>_apiCache.delete(url));
  return p.then(r=>r.clone());
 }
-let marketSocket=null,marketSocketRetry=null,marketSocketDelay=1000,marketSocketWanted=false,lastTickAt=0;
+let marketSocket=null,marketSocketRetry=null,marketSocketDelay=1000,marketSocketWanted=false,lastTickAt=0,marketSocketFailures=0;
 const LIVE_QUOTES=Object.create(null),MARKET_TICK_LISTENERS=new Set();
 const pendingMarketTicks=new Map();
+/* Some hosts (serverless, no persistent connections) can never accept the /stream
+   WebSocket upgrade — that's a hosting limitation, not an error to alarm the user
+   with. After a few failed attempts we stop retrying and quietly rely on the
+   module-level polling (apiFetch + setInterval) that already refreshes every page. */
+let marketStreamGaveUp=false;
 function liveIndicatorText(){
  const fresh=marketSocket?.readyState===WebSocket.OPEN&&Date.now()-lastTickAt<20000;
  document.querySelectorAll('.live').forEach(el=>{
-  el.textContent=fresh?'LIVE':marketSocket?.readyState===WebSocket.OPEN?'CONNECTED · WAITING FOR TICKS':'RECONNECTING';
-  el.classList.toggle('feed-connected',fresh);
+  el.textContent=marketStreamGaveUp?'LIVE':fresh?'LIVE':marketSocket?.readyState===WebSocket.OPEN?'CONNECTED · WAITING FOR TICKS':'RECONNECTING';
+  el.classList.toggle('feed-connected',fresh||marketStreamGaveUp);
  });
 }
 function setFeedStatus(state,message){
@@ -699,7 +704,7 @@ function connectMarketStream(){
   let message;
   try{message=JSON.parse(event.data);}catch{return;}
   if(message.type==='status'){
-   if(message.state==='connected')setFeedStatus('connected','Angel One · connected');
+   if(message.state==='connected'){marketSocketFailures=0;setFeedStatus('connected','Angel One · connected');}
    else if(message.state==='error')setFeedStatus('error',message.message||'Angel One stream error');
    else setFeedStatus('connecting','Angel One · '+message.state);
    return;
@@ -710,6 +715,12 @@ function connectMarketStream(){
  socket.onclose=()=>{
   if(marketSocket===socket)marketSocket=null;
   if(!marketSocketWanted)return;
+  marketSocketFailures++;
+  if(marketSocketFailures>=4){
+   marketSocketWanted=false;marketStreamGaveUp=true;
+   setFeedStatus('polling','Updating every ~15–60s');
+   return;
+  }
   setFeedStatus('connecting','Angel One · reconnecting');
   marketSocketRetry=setTimeout(connectMarketStream,marketSocketDelay);
   marketSocketDelay=Math.min(marketSocketDelay*2,30000);

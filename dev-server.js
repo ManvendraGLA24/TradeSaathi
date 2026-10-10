@@ -5,7 +5,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { attachMarketStream } from './api/_marketStream.js';
+import { attachMarketStream } from './lib/api/_marketStream.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -23,8 +23,10 @@ if (fs.existsSync(envFile)) {
 const handlers = {};
 async function runApi(name, req, res) {
   const file = path.join(ROOT, 'api', name + '.js');
-  if (name.startsWith('_') || !fs.existsSync(file)) { res.statusCode = 404; return res.end('Not found'); }
-  handlers[name] ||= (await import(pathToFileURL(file).href)).default;
+  const legacyFile = path.join(ROOT, 'lib', 'routes', name + '.js');
+  const resolvedFile = fs.existsSync(file) ? file : (name.startsWith('_') ? null : legacyFile);
+  if (!resolvedFile || !fs.existsSync(resolvedFile)) { res.statusCode = 404; return res.end('Not found'); }
+  handlers[name] ||= (await import(pathToFileURL(resolvedFile).href)).default;
   res.status = (c) => { res.statusCode = c; return res; };
   res.json = (o) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(o)); };
   await handlers[name](req, res);

@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 process.env.APP_PASSWORD = 'test-only-dashboard-password';
 process.env.APP_SESSION_SECRET = 'test-only-session-secret-with-32-plus-characters';
 
-const auth = await import('../api/_auth.js');
-const { decodePacket } = await import('../api/_marketStream.js');
+const auth = await import('../lib/api/_auth.js');
+const { decodePacket } = await import('../lib/api/_marketStream.js');
 
 function response() {
   return {
@@ -36,13 +36,13 @@ test('private login issues a signed cookie that authorizes a session', async () 
 });
 
 test('private market API handlers reject unauthenticated requests before broker access', async () => {
+  const { default: router } = await import('../api/[...path].js');
   for (const route of [
     'candles', 'fiidii', 'indexmover', 'indices', 'insight', 'news',
     'oichange', 'optionchain', 'portfolio', 'quote', 'universe',
   ]) {
-    const { default: handler } = await import(`../api/${route}.js`);
     const res = response();
-    await handler({ method: 'GET', url: `/api/${route}`, headers: {}, socket: {} }, res);
+    await router({ method: 'GET', url: `/api/${route}`, headers: {}, socket: {} }, res);
     assert.equal(res.statusCode, 401, `${route} must be private`);
     assert.equal(res.body.authenticated, undefined);
   }

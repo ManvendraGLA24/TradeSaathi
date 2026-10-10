@@ -104,6 +104,16 @@ environment variables there. Keep the app private and use HTTPS in production.
 Do not expose a single-user broker account through an unauthenticated or
 multi-user deployment.
 
+### Deploy on Render
+
+This repository includes a `render.yaml` Blueprint for the Node web service.
+In Render, create a **Blueprint** from the GitHub repository and enter the
+requested secret environment-variable values in Render's dashboard when
+prompted. The YAML deliberately uses `sync: false`: never put real credentials
+in `render.yaml`, source files, or GitHub. Keep `.env.local` local; it is
+gitignored. `GEMINI_API_KEY` is optional; the other listed variables are needed
+for private sign-in and SmartAPI data.
+
 ---
 
 ## 3. Editing the menu
