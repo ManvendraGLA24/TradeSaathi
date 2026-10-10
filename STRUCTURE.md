@@ -19,7 +19,7 @@ tradesaathi-navbar/
 ├── api/
 │   └── [...path].js      # one Vercel function dispatching all /api/* routes
 ├── lib/
-│   ├── api/              # shared auth, SmartAPI, options, tokens, Gemini, WebSocket helpers
+│   ├── api/              # shared SmartAPI, options, tokens, Gemini, WebSocket helpers
 │   └── routes/           # handlers for /api/quote, /api/universe, /api/indices, etc.
 │
 └── src/                  # Next.js React scaffold (reference only)

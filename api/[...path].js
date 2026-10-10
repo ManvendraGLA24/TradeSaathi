@@ -4,20 +4,17 @@ const ROUTES = {
   indexmover: () => import('../lib/routes/indexmover.js'),
   indices: () => import('../lib/routes/indices.js'),
   insight: () => import('../lib/routes/insight.js'),
-  login: () => import('../lib/routes/login.js'),
-  logout: () => import('../lib/routes/logout.js'),
   news: () => import('../lib/routes/news.js'),
   oichange: () => import('../lib/routes/oichange.js'),
   optionchain: () => import('../lib/routes/optionchain.js'),
   portfolio: () => import('../lib/routes/portfolio.js'),
   quote: () => import('../lib/routes/quote.js'),
-  session: () => import('../lib/routes/session.js'),
   universe: () => import('../lib/routes/universe.js'),
 };
 
 export default async function handler(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
-  const name = decodeURIComponent(url.pathname.replace(/^\/api\/?/, '').replace(/\/$/, '') || 'session');
+  const name = decodeURIComponent(url.pathname.replace(/^\/api\/?/, '').replace(/\/$/, '') || 'universe');
   const loader = ROUTES[name];
   if (!loader) {
     res.statusCode = 404;

@@ -42,31 +42,14 @@ preview.html              # open in any browser to SEE the design (no build need
 1. Keep `.env.local` private and fill in the server-side values from `.env.example`.
    Existing `.env.local` files are not overwritten.
 2. Configure:
-   - `APP_PASSWORD` — a unique dashboard password, at least 12 characters.
-   - `APP_SESSION_SECRET` — a random secret of at least 32 characters.
    - `SMARTAPI_API_KEY`, `SMARTAPI_CLIENT_CODE`, `SMARTAPI_MPIN`, and
      `SMARTAPI_TOTP_SECRET` — your Angel One SmartAPI credentials.
    - `GEMINI_API_KEY` — optional; used only when the Gemini summary button is clicked.
 3. Run `npm install`, then `npm run dev`, and open `http://localhost:3000`.
-   Sign in with `APP_PASSWORD`.
 
-The login uses an HttpOnly, SameSite cookie. All market, portfolio, news, and
-Gemini API routes require this session. Never put broker or Gemini keys in
-browser code.
-
-For PowerShell, a secret can be generated in the local terminal with:
-
-```powershell
-$bytes = [byte[]]::new(32)
-$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-$rng.GetBytes($bytes)
-$secret = [Convert]::ToBase64String($bytes)
-$rng.Dispose()
-$secret
-```
-
-Use the output as `APP_SESSION_SECRET` in `.env.local`; choose a separate
-`APP_PASSWORD` and never reuse the Angel One PIN.
+There is no login — the dashboard opens directly. Never put broker or Gemini
+keys in browser code; they are read only on the server. Because there is no
+login, keep the deployed URL private (see the security note below).
 
 ## 3. Market-data and AI behavior
 
@@ -75,7 +58,7 @@ Use the output as `APP_SESSION_SECRET` in `.env.local`; choose a separate
   daily public-source data from NSE and Moneycontrol, not Angel One account data
   or an intraday tick feed.
 - The persistent Node server opens one authenticated Angel One WebSocket and
-  broadcasts decoded quote ticks to signed-in browser sessions. A closed market,
+  broadcasts decoded quote ticks to connected browser sessions. A closed market,
   broker outage, expired credentials, or missing market subscription is shown
   as a disconnected/waiting state; sample prices are not substituted.
 - Market Pulse, Sector Scope, Insider Strategy price/volume screens, Swing
@@ -100,9 +83,13 @@ Use the output as `APP_SESSION_SECRET` in `.env.local`; choose a separate
 `/stream` requires a long-running Node process; Vercel serverless functions do
 not host this WebSocket bridge. Deploy this app on an always-on Node host (for
 example, a Render/Railway service or a VPS), run `npm start`, and set the same
-environment variables there. Keep the app private and use HTTPS in production.
-Do not expose a single-user broker account through an unauthenticated or
-multi-user deployment.
+environment variables there. Use HTTPS in production.
+
+**There is no login on this dashboard.** It shows your live Angel One market
+data, portfolio, and journal to anyone who has the URL — it never exposes the
+broker credentials themselves (those stay server-side), but treat the URL
+itself as a secret: don't publish it, link it publicly, or share it outside a
+private, single-user deployment.
 
 ### Deploy on Render
 

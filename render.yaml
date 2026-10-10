@@ -5,10 +5,6 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
-      - key: APP_PASSWORD
-        sync: false
-      - key: APP_SESSION_SECRET
-        sync: false
       - key: SMARTAPI_API_KEY
         sync: false
       - key: SMARTAPI_CLIENT_CODE
