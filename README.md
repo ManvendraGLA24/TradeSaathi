@@ -1,12 +1,13 @@
-# TradeSaathi — Sidebar Navigation
+# TradeSaathi — Market Workspace
 
-A production-ready, **data-driven** sidebar + top bar for the TradeSaathi
-trading app. Rebranded from the TradeFinder reference design, built for
-**Next.js (App Router) + React + TypeScript** with plain CSS Modules (no
-Tailwind or icon-library required).
+A private, single-user market dashboard with an Angel One SmartAPI backend,
+real-time WebSocket quotes, historical candles, option-chain/OI endpoints, and
+an on-demand Gemini market-summary route. It is analysis/display only and does
+not place orders.
 
-Market data is expected to come from **Angel One SmartAPI** via your own
-backend — see "Premium gating & Angel One" below.
+`npm run dev` serves `preview_pages.html` and the `/api/*` handlers from
+`dev-server.js`. The TSX files under `src/app/` are source UI previews; this
+repository does not currently configure a Next.js build.
 
 ---
 
@@ -16,13 +17,17 @@ backend — see "Premium gating & Angel One" below.
 src/components/sidebar/
 ├── index.ts              # barrel export
 ├── navConfig.ts          # ← EDIT THIS to change the menu (single source of truth)
-├── Sidebar.tsx           # the sidebar shell (collapsible groups, lock states, active route)
+├── Sidebar.tsx           # the sidebar shell (collapsible groups and active route)
 ├── Topbar.tsx            # notification bell + "SIGNED IN" user chip
+├── MobileNav.tsx         # responsive Stocks / Index / Home / Tools / More navigation
 ├── Logo.tsx              # TradeSaathi wordmark + emblem
-├── useSubscription.ts    # decides which premium items are locked (wire to your backend)
+├── useSubscription.ts    # sample signed-in user for the dashboard shell
 ├── icons.tsx             # dependency-free inline SVG icons
 ├── types.ts              # TypeScript types for the config
 └── Sidebar.module.css    # all styling (CSS variables at the top for theming)
+
+src/components/ui/StaticModulePage.tsx   # reusable static scanner/table/card layouts
+src/components/ui/static-module.module.css
 
 preview.html              # open in any browser to SEE the design (no build needed)
 ```
@@ -32,35 +37,72 @@ preview.html              # open in any browser to SEE the design (no build need
 
 ---
 
-## 2. Quick start (Next.js App Router)
+## 2. Quick start
 
-1. Copy the `src/components/sidebar/` folder into your project.
-2. Add the shell to your dashboard layout:
+1. Keep `.env.local` private and fill in the server-side values from `.env.example`.
+   Existing `.env.local` files are not overwritten.
+2. Configure:
+   - `APP_PASSWORD` — a unique dashboard password, at least 12 characters.
+   - `APP_SESSION_SECRET` — a random secret of at least 32 characters.
+   - `SMARTAPI_API_KEY`, `SMARTAPI_CLIENT_CODE`, `SMARTAPI_MPIN`, and
+     `SMARTAPI_TOTP_SECRET` — your Angel One SmartAPI credentials.
+   - `GEMINI_API_KEY` — optional; used only when the Gemini summary button is clicked.
+3. Run `npm install`, then `npm run dev`, and open `http://localhost:3000`.
+   Sign in with `APP_PASSWORD`.
 
-```tsx
-// app/(dashboard)/layout.tsx
-"use client";
-import { useState } from "react";
-import { Sidebar, Topbar, useSubscription } from "@/components/sidebar";
+The login uses an HttpOnly, SameSite cookie. All market, portfolio, news, and
+Gemini API routes require this session. Never put broker or Gemini keys in
+browser code.
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const { user } = useSubscription();
+For PowerShell, a secret can be generated in the local terminal with:
 
-  return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#060910" }}>
-      <Sidebar user={user} open={menuOpen} onClose={() => setMenuOpen(false)} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <Topbar user={user} notificationCount={3} onToggleMenu={() => setMenuOpen(true)} />
-        <main>{children}</main>
-      </div>
-    </div>
-  );
-}
+```powershell
+$bytes = [byte[]]::new(32)
+$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($bytes)
+$secret = [Convert]::ToBase64String($bytes)
+$rng.Dispose()
+$secret
 ```
 
-That's it — the menu renders from `navConfig.ts`, the active item highlights
-automatically from the URL, and premium items lock based on `user.isSubscribed`.
+Use the output as `APP_SESSION_SECRET` in `.env.local`; choose a separate
+`APP_PASSWORD` and never reuse the Angel One PIN.
+
+## 3. Market-data and AI behavior
+
+- Angel One SmartAPI REST provides NSE quotes, 5-minute/daily candle history,
+  option-chain OI, and read-only portfolio statistics. FII/DII activity is
+  daily public-source data from NSE and Moneycontrol, not Angel One account data
+  or an intraday tick feed.
+- The persistent Node server opens one authenticated Angel One WebSocket and
+  broadcasts decoded quote ticks to signed-in browser sessions. A closed market,
+  broker outage, expired credentials, or missing market subscription is shown
+  as a disconnected/waiting state; sample prices are not substituted.
+- Market Pulse, Sector Scope, Insider Strategy price/volume screens, Swing
+  Spectrum, Watchlist, Index Mover, and Option Apex update from the live quote
+  stream. Historical charts use Angel One candles; the current NIFTY candle is
+  updated with stream ticks. Option OI change is based on SmartAPI's historical
+  five-minute OI data, so it is not a tick-by-tick measure.
+- FII/DII and news are fetched from their upstream public sources and are not
+  tick data. Market commentary is explicitly requested from the Gemini button:
+  the server supplies an Angel One snapshot, Google Search grounding is used for
+  current public context, and returned web citations are shown. Gemini is not a
+  live quote feed and does not issue trading instructions.
+- Market-data modules show waiting/unavailable states instead of substituting
+  old sample prices when a live quote or source response is missing.
+- Scanner screens use price/volume rules over the available instrument set.
+  SmartAPI quotes are not an insider-disclosure feed; Insider Strategy must not
+  be interpreted as reporting actual insider transactions. No order-placement
+  API is exposed.
+
+### Deployment constraint
+
+`/stream` requires a long-running Node process; Vercel serverless functions do
+not host this WebSocket bridge. Deploy this app on an always-on Node host (for
+example, a Render/Railway service or a VPS), run `npm start`, and set the same
+environment variables there. Keep the app private and use HTTPS in production.
+Do not expose a single-user broker account through an unauthenticated or
+multi-user deployment.
 
 ---
 
@@ -70,15 +112,10 @@ automatically from the URL, and premium items lock based on `user.isSubscribed`.
 array. Each entry is either a `leaf` (a link) or a `group` (collapsible).
 
 ```ts
-// add a new free item
+// add a new navigation item
 { kind: "leaf", id: "alerts", label: "Alerts", href: "/alerts", icon: BellIcon },
-
-// add a premium item inside the Stocks group
-{ kind: "leaf", id: "fib-levels", label: "Fib Levels", href: "/fib-levels", icon: SwingIcon, premium: true },
 ```
 
-- `premium: true` → shows the 🔒 lock and, for non-subscribers, routes to
-  `/pricing?feature=<id>` instead of the page.
 - `badge: "NEW"` → small pill next to the label.
 - Each leaf's `id` matches the reference screenshots (e.g. `market-pulse` ↔
   `Marketpulse01.png`, `sector-scope` ↔ `SectorScope01.png`) so you can line
@@ -86,27 +123,12 @@ array. Each entry is either a `leaf` (a link) or a `group` (collapsible).
 
 ---
 
-## 4. Premium gating & Angel One
+## 4. UI source
 
-Important separation of concerns:
-
-| Concern | Where it lives |
-|---|---|
-| **Market data / orders** | Angel One SmartAPI (called from *your backend*, never the browser — your SmartAPI key/token must stay server-side) |
-| **Who paid for TradeSaathi** | *Your own* backend (`/api/me` → `{ isSubscribed, plan, expiry }`) |
-| **UI lock icon** | `useSubscription.ts` (visual hint only) |
-
-Wire real subscription status by editing the `fetchMe()` function in
-`useSubscription.ts` — the example call is already stubbed in comments. Keep
-the returned shape (`SidebarUser`) the same and nothing else needs to change.
-
-### ⚠️ Security note (do not skip)
-The lock icon is **UI only**. A determined user can edit client state and
-flip `isSubscribed`. **Access control must be enforced on the server** for
-every premium route and every `/data/*` API endpoint — check the user's
-subscription on the backend before returning Angel One data. Never rely on
-the sidebar lock alone to protect paid features. (This is exactly the kind of
-"client-side gating only" gap that leads to premium bypass.)
+The `preview_pages.html` application is the served runtime and its market-data
+screens are wired to the protected API and streaming service. The independent
+React/TSX module pages are still illustrative UI source and are not built or
+served by the current npm scripts.
 
 ---
 
@@ -143,7 +165,9 @@ works unchanged.
 
 ## 7. Dependencies
 
-- `react`, `react-dom` (and `next` if you use the Next.js `Link`).
+- Node.js 20 or newer and `ws` for the persistent market-stream bridge.
+- The TSX source additionally expects `react`, `react-dom`, and Next.js if you
+  choose to configure/build it separately.
 - **No** Tailwind, **no** icon library required.
 - Optional: if you prefer `lucide-react`, delete `icons.tsx` and import the
   same-named icons from it.
@@ -152,51 +176,31 @@ works unchanged.
 
 ## 8. Feature pages (the "inside" of each nav item)
 
-All pages live under `src/app/(dashboard)/` and share the Sidebar+Topbar shell
-(`layout.tsx`). Open **`preview_pages.html`** to see the three fully-built
-pages (switch tabs at the top).
+The TSX UI pages live under `src/app/(dashboard)/` and share the Sidebar+Topbar
+shell (`layout.tsx`). Open **`preview_pages.html`** to run the served dashboard.
 
-### Fully built (use these as your two reference patterns)
-| Page | Route | Pattern | Rebuilt from |
-|---|---|---|---|
-| **Home** | `/` | dashboard: ticker + workspace + tool cards | `Home01/02.png` |
-| **Market Pulse** | `/market-pulse` | hero + filters + live **table** (+ empty state) | `Marketpulse01–07.png` |
-| **Sector Scope** | `/sector-scope` | sector **heatmap** (weighted tiles + tooltip) | `SectorScope01–15.png` |
+### Current limitations
 
-### Scaffolded (navigable, ready to build out)
-`swing-spectrum`, `insider-strategy`, `option-clock`, `option-apex`,
-`index-mover`, `fii-dii`, `community`, `trading-journal`, `watchlist`,
-`calculator`, `games/flip-it`, `games/trade-titans`, `videos/*`, `settings`,
-`feedback`, `pricing`.
-
-Each scaffold uses `<FeatureScaffold />` and names the screenshot(s) it should
-match. To build one out, copy the closest reference page:
-- **table-style** feature (Swing Spectrum, FII DII, Watchlist, Trading Journal) → copy `market-pulse/`.
-- **heatmap-style** feature (Insider Strategy) → copy `sector-scope/` and reuse its `heat()` helper.
-- **grid/chart** feature (Index Mover, Option Clock/Apex) → copy the Home grid + add charts.
-
-### All data is mock
-Every page renders placeholder data wired through component state. Replace the
-`SAMPLE` / `MARKETS` / `SECTORS` constants with calls to **your backend**,
-which holds the Angel One SmartAPI session server-side and enforces the
-subscription check before returning `/data/*`. (Reminder from §4: the lock is
-UI only — gate every premium endpoint on the server.)
+Only the static HTML dashboard is wired to the backend in this repository.
+Community, games, videos, feedback, and settings remain presentation-only.
+FII/DII freshness depends on the upstream publication schedule; Angel One data
+availability and account entitlements determine which quotes/options are returned.
 
 ### Files added for pages
 ```
 src/app/(dashboard)/
 ├── layout.tsx                 # Sidebar + Topbar shell
 ├── page.tsx + home.module.css # Home
-├── market-pulse/              # built  (table pattern)
-├── sector-scope/              # built  (heatmap pattern)
-└── <feature>/page.tsx         # scaffolds
+├── market-pulse/              # scanner table preview
+├── sector-scope/              # sector heatmap preview
+└── <feature>/page.tsx         # module preview screens
 src/components/ui/
 ├── shell.module.css           # shared tokens + page primitives
 ├── PageHeader.tsx             # title + How-to-use + LIVE row
-└── FeatureScaffold.tsx        # placeholder for unbuilt pages
+├── StaticModulePage.tsx       # reusable cards, tables, metrics and chart bars
+└── static-module.module.css   # responsive module preview styling
 ```
 
 > **Path alias:** files import via `@/` (e.g. `@/components/sidebar`). Make sure
 > your `tsconfig.json` has `"paths": { "@/*": ["./src/*"] }` (default in a
 > `src/`-based Next.js app).
-

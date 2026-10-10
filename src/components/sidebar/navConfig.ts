@@ -9,7 +9,7 @@
  * reference (e.g. id "market-pulse" -> Marketpulse01.png, "sector-scope" ->
  * SectorScope01.png).
  *
- * `premium: true`  -> shows the lock icon and is gated for non-subscribers.
+ * Navigation items link directly to their UI preview routes.
  * -------------------------------------------------------------------------
  */
 
@@ -31,10 +31,10 @@ export const NAV_CONFIG: NavItem[] = [
     icon: StocksIcon,
     defaultOpen: true,
     children: [
-      { kind: "leaf", id: "market-pulse",     label: "Market Pulse",     href: "/market-pulse",     icon: PulseIcon,    premium: true },
-      { kind: "leaf", id: "insider-strategy",  label: "Insider Strategy",  href: "/insider-strategy", icon: StrategyIcon, premium: true },
-      { kind: "leaf", id: "sector-scope",      label: "Sector Scope",      href: "/sector-scope",     icon: SectorIcon,   premium: true },
-      { kind: "leaf", id: "swing-spectrum",    label: "Swing Spectrum",    href: "/swing-spectrum",   icon: SwingIcon,    premium: true },
+      { kind: "leaf", id: "market-pulse",     label: "Market Pulse",     href: "/market-pulse",     icon: PulseIcon },
+      { kind: "leaf", id: "insider-strategy",  label: "Insider Strategy",  href: "/insider-strategy", icon: StrategyIcon },
+      { kind: "leaf", id: "sector-scope",      label: "Sector Scope",     href: "/sector-scope",     icon: SectorIcon },
+      { kind: "leaf", id: "swing-spectrum",    label: "Swing Spectrum",   href: "/swing-spectrum",   icon: SwingIcon },
     ],
   },
 
@@ -45,17 +45,17 @@ export const NAV_CONFIG: NavItem[] = [
     icon: IndexIcon,
     defaultOpen: true,
     children: [
-      { kind: "leaf", id: "option-clock", label: "Option Clock", href: "/option-clock", icon: ClockIcon, premium: true },
-      { kind: "leaf", id: "option-apex",  label: "Option Apex",  href: "/option-apex",  icon: ApexIcon,  premium: true },
-      { kind: "leaf", id: "index-mover",  label: "Index Mover",  href: "/index-mover",  icon: MoverIcon, premium: true },
+      { kind: "leaf", id: "option-clock", label: "Option Clock", href: "/option-clock", icon: ClockIcon },
+      { kind: "leaf", id: "option-apex",  label: "Option Apex",  href: "/option-apex",  icon: ApexIcon },
+      { kind: "leaf", id: "index-mover",  label: "Index Mover",  href: "/index-mover", icon: MoverIcon },
     ],
   },
 
-  { kind: "leaf", id: "fii-dii",         label: "FII DII",         href: "/fii-dii",         icon: FiiDiiIcon,    premium: true },
-  { kind: "leaf", id: "community",       label: "Community",       href: "/community",       icon: CommunityIcon, premium: true },
-  { kind: "leaf", id: "trading-journal", label: "Trading Journal", href: "/trading-journal", icon: JournalIcon,   premium: true },
-  { kind: "leaf", id: "watchlist",       label: "Watchlist",       href: "/watchlist",       icon: WatchlistIcon, premium: true },
-  { kind: "leaf", id: "calculator",      label: "Calculator",      href: "/calculator",      icon: CalculatorIcon, premium: true },
+  { kind: "leaf", id: "fii-dii",         label: "FII DII",         href: "/fii-dii",         icon: FiiDiiIcon },
+  { kind: "leaf", id: "community",       label: "Community",       href: "/community",       icon: CommunityIcon },
+  { kind: "leaf", id: "trading-journal", label: "Trading Journal", href: "/trading-journal", icon: JournalIcon },
+  { kind: "leaf", id: "watchlist",       label: "Watchlist",       href: "/watchlist",       icon: WatchlistIcon },
+  { kind: "leaf", id: "calculator",      label: "Calculator",      href: "/calculator",      icon: CalculatorIcon },
 
   {
     kind: "group",
@@ -64,8 +64,8 @@ export const NAV_CONFIG: NavItem[] = [
     icon: GamesIcon,
     defaultOpen: true,
     children: [
-      { kind: "leaf", id: "flip-it",      label: "Flip It",      href: "/games/flip-it",      icon: FlipIcon,   premium: true },
-      { kind: "leaf", id: "trade-titans", label: "Trade Titans", href: "/games/trade-titans", icon: TitansIcon, premium: true },
+      { kind: "leaf", id: "flip-it",      label: "Flip It",      href: "/games/flip-it",      icon: FlipIcon },
+      { kind: "leaf", id: "trade-titans", label: "Trade Titans", href: "/games/trade-titans", icon: TitansIcon },
     ],
   },
 

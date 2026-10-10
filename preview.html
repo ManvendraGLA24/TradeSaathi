@@ -8,7 +8,7 @@
   :root{
     --bg:#060910; --panel:#0a0e17; --raise:#111828; --active:#16203a;
     --border:rgba(255,255,255,.06); --text:#d7dce8; --muted:#828ba3;
-    --accent:#2dd4e8; --accent2:#4f8cff; --lock:#6b7488; --radius:10px;
+    --accent:#2dd4e8; --accent2:#4f8cff; --radius:10px;
   }
   *{box-sizing:border-box}
   body{
@@ -48,17 +48,12 @@
   .active .ic{color:var(--accent)}
   .nested{padding-left:34px;font-weight:500;font-size:14px}
   .nested .ic{transform:scale(.9)}
-  .lock{color:var(--lock);display:flex;margin-left:auto}
-  .item.locked .lock:hover{color:var(--accent)}
   .chev{color:var(--muted);display:flex;margin-left:auto;transition:transform .18s}
   .chev.open{transform:rotate(180deg)}
   .body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .2s}
   .body.open{grid-template-rows:1fr}
   .inner{overflow:hidden;min-height:0;display:flex;flex-direction:column;gap:2px;padding-top:2px}
 
-  .footer{padding:12px;border-top:1px solid var(--border)}
-  .upgrade{display:block;text-align:center;padding:10px 12px;border-radius:var(--radius);
-    font-weight:700;color:#04232b;background:linear-gradient(90deg,var(--accent),var(--accent2))}
 
   /* Main */
   .main{flex:1;display:flex;flex-direction:column;min-width:0}
@@ -80,7 +75,6 @@
   .content h1{color:#fff;font-size:22px;margin:0 0 6px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-top:20px}
   .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative}
-  .card .lk{position:absolute;top:14px;right:14px;color:var(--lock)}
   .card h3{color:#fff;margin:0 0 8px;font-size:16px}
   .card p{margin:0;font-size:13px;line-height:1.5}
   .note{font-size:12px;color:var(--muted);padding:10px 20px;border-top:1px solid var(--border)}
@@ -101,7 +95,6 @@
 
     <nav class="nav" id="nav"></nav>
 
-    <div class="footer"><a class="upgrade" href="#">Unlock Premium</a></div>
   </aside>
 
   <div class="main">
@@ -118,18 +111,17 @@
       <h1>TradeSaathi Dashboard</h1>
       <p>Investor sentiment and confidence in the Indian stock market — powered by Angel One SmartAPI.</p>
       <div class="grid">
-        <div class="card"><span class="lk"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><h3>Insider Strategy</h3><p>Spot concentrated buying and selling patterns fast.</p></div>
-        <div class="card"><span class="lk"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><h3>Sector Scope</h3><p>Compare sector strength, breadth, and leaders in one view.</p></div>
-        <div class="card"><span class="lk"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><h3>Option Clock</h3><p>Call and put OI change by strike and time window.</p></div>
-        <div class="card"><span class="lk"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><h3>Option Apex</h3><p>Candle-by-candle option flow with sentiment context.</p></div>
+        <div class="card"><h3>Insider Strategy</h3><p>Spot concentrated buying and selling patterns fast.</p></div>
+        <div class="card"><h3>Sector Scope</h3><p>Compare sector strength, breadth, and leaders in one view.</p></div>
+        <div class="card"><h3>Option Clock</h3><p>Call and put OI change by strike and time window.</p></div>
+        <div class="card"><h3>Option Apex</h3><p>Candle-by-candle option flow with sentiment context.</p></div>
       </div>
     </div>
-    <div class="note">Static preview of the React component. The real menu is rendered from <code>navConfig.ts</code>; lock state comes from <code>useSubscription.ts</code>.</div>
+    <div class="note">Static preview of the React navigation and module UI.</div>
   </div>
 
 <script>
-/* The same nav tree as navConfig.ts, rendered statically for preview.
-   premium:true items show the lock (user is treated as not-subscribed here). */
+/* The same nav tree as navConfig.ts, rendered statically for preview. */
 const I = {
   home:'M3 10.5 12 3l9 7.5|M5 9.5V21h14V9.5|M9 21v-6h6v6',
   stocks:'M3 17l5-5 4 4 8-8|M14 8h6v6',
@@ -154,28 +146,27 @@ const I = {
   settings:'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6|M12 2v3M12 19v3M2 12h3M19 12h3',
 };
 function svg(key){return '<svg width="20" height="20" viewBox="0 0 24 24">'+(I[key]||'').split('|').map(d=>'<path d="'+d+'"/>').join('')+'</svg>';}
-const lock='<span class="lock"><svg width="15" height="15" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>';
 const chev='<span class="chev open"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>';
 
 const NAV=[
   {t:'leaf',label:'Home',icon:'home',active:true},
   {t:'group',label:'Stocks',icon:'stocks',open:true,children:[
-    {label:'Market Pulse',icon:'pulse',premium:true},
-    {label:'Insider Strategy',icon:'strategy',premium:true},
-    {label:'Sector Scope',icon:'sector',premium:true},
-    {label:'Swing Spectrum',icon:'swing',premium:true}]},
+    {label:'Market Pulse',icon:'pulse'},
+    {label:'Insider Strategy',icon:'strategy'},
+    {label:'Sector Scope',icon:'sector'},
+    {label:'Swing Spectrum',icon:'swing'}]},
   {t:'group',label:'Index',icon:'index',open:true,children:[
-    {label:'Option Clock',icon:'clock',premium:true},
-    {label:'Option Apex',icon:'apex',premium:true},
-    {label:'Index Mover',icon:'mover',premium:true}]},
-  {t:'leaf',label:'FII DII',icon:'fii',premium:true},
-  {t:'leaf',label:'Community',icon:'community',premium:true},
-  {t:'leaf',label:'Trading Journal',icon:'journal',premium:true},
-  {t:'leaf',label:'Watchlist',icon:'watch',premium:true},
-  {t:'leaf',label:'Calculator',icon:'calc',premium:true},
+    {label:'Option Clock',icon:'clock'},
+    {label:'Option Apex',icon:'apex'},
+    {label:'Index Mover',icon:'mover'}]},
+  {t:'leaf',label:'FII DII',icon:'fii'},
+  {t:'leaf',label:'Community',icon:'community'},
+  {t:'leaf',label:'Trading Journal',icon:'journal'},
+  {t:'leaf',label:'Watchlist',icon:'watch'},
+  {t:'leaf',label:'Calculator',icon:'calc'},
   {t:'group',label:'Games',icon:'games',open:true,children:[
-    {label:'Flip It',icon:'flip',premium:true},
-    {label:'Trade Titans',icon:'titans',premium:true}]},
+    {label:'Flip It',icon:'flip'},
+    {label:'Trade Titans',icon:'titans'}]},
   {t:'group',label:'Videos',icon:'videos',open:false,children:[
     {label:'Tutorials',icon:'videos'},
     {label:'Webinars',icon:'videos'}]},
@@ -183,9 +174,9 @@ const NAV=[
   {t:'leaf',label:'Settings',icon:'settings'},
 ];
 function leaf(it,nested){
-  return '<a class="item '+(nested?'nested ':'')+(it.active?'active ':'')+(it.premium?'locked':'')+'">'
+  return '<a class="item '+(nested?'nested ':'')+(it.active?'active ':'')+'">'
     +'<span class="ic">'+svg(it.icon)+'</span><span class="label">'+it.label+'</span>'
-    +(it.premium?lock:'')+'</a>';
+    +'</a>';
 }
 const nav=document.getElementById('nav');
 NAV.forEach(it=>{

@@ -17,8 +17,6 @@ export type IconType = ComponentType<{ size?: number; className?: string }>;
 
 /**
  * A single clickable navigation item (leaf node).
- * `premium: true` renders the 🔒 lock and gates the route when the user is
- * not subscribed (see useSubscription.ts).
  */
 export interface NavLeaf {
   kind: "leaf";
@@ -30,8 +28,6 @@ export interface NavLeaf {
   href: string;
   /** Icon component. */
   icon: IconType;
-  /** When true, the item is a paid feature (shows lock, gated when not subscribed). */
-  premium?: boolean;
   /** Optional badge text, e.g. "NEW". */
   badge?: string;
 }
@@ -57,6 +53,4 @@ export type NavItem = NavLeaf | NavGroup;
 export interface SidebarUser {
   displayName: string;      // e.g. "guest_ub4irjo2ht" or a real username
   avatarUrl?: string;       // optional profile image
-  isSubscribed: boolean;    // drives premium gating
-  plan?: "free" | "pro" | "premium";
 }

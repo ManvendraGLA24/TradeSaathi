@@ -7,8 +7,6 @@
  *
  * - Data-driven: renders NAV_CONFIG (navConfig.ts). Edit the config, not this.
  * - Collapsible groups with open/close state.
- * - Premium items show a lock when the user isn't subscribed and route to
- *   /pricing instead of the gated page.
  * - Active route is highlighted via Next.js `usePathname`.
  *
  * Drop-in usage (App Router):
@@ -35,16 +33,11 @@ import { usePathname } from "next/navigation";
 
 import styles from "./Sidebar.module.css";
 import { NAV_CONFIG } from "./navConfig";
-import type { NavItem, NavLeaf, NavGroup, SidebarUser } from "./types";
-import { useSubscription } from "./useSubscription";
+import type { NavLeaf, NavGroup } from "./types";
 import { Logo } from "./Logo";
-import { ChevronIcon, LockIcon, CloseIcon } from "./icons";
+import { ChevronIcon, CloseIcon } from "./icons";
 
 export interface SidebarProps {
-  /** Supply the user (e.g. from SSR) to skip the client fetch. Optional. */
-  user?: SidebarUser;
-  /** Where locked premium items send the user. Default: "/pricing". */
-  upgradeHref?: string;
   /** Mobile: whether the drawer is open. */
   open?: boolean;
   /** Mobile: called when the user taps the close button / backdrop. */
@@ -52,13 +45,10 @@ export interface SidebarProps {
 }
 
 export function Sidebar({
-  user,
-  upgradeHref = "/pricing",
   open = true,
   onClose,
 }: SidebarProps) {
   const pathname = usePathname();
-  const { user: me, isLocked } = useSubscription(user);
 
   return (
     <>
@@ -86,22 +76,19 @@ export function Sidebar({
                 key={item.id}
                 group={item}
                 pathname={pathname}
-                isLocked={isLocked}
-                upgradeHref={upgradeHref}
+                onNavigate={onClose}
               />
             ) : (
               <Leaf
                 key={item.id}
                 leaf={item}
                 pathname={pathname}
-                isLocked={isLocked}
-                upgradeHref={upgradeHref}
+                onNavigate={onClose}
               />
             )
           )}
         </nav>
 
-        <SubscriptionFooter user={me} upgradeHref={upgradeHref} />
       </aside>
     </>
   );
@@ -112,13 +99,11 @@ export function Sidebar({
 function Group({
   group,
   pathname,
-  isLocked,
-  upgradeHref,
+  onNavigate,
 }: {
   group: NavGroup;
   pathname: string;
-  isLocked: (p?: boolean) => boolean;
-  upgradeHref: string;
+  onNavigate?: () => void;
 }) {
   // A group is "active" when one of its children is the current route.
   const childActive = useMemo(
@@ -151,8 +136,7 @@ function Group({
               key={c.id}
               leaf={c}
               pathname={pathname}
-              isLocked={isLocked}
-              upgradeHref={upgradeHref}
+              onNavigate={onNavigate}
               nested
             />
           ))}
@@ -167,64 +151,34 @@ function Group({
 function Leaf({
   leaf,
   pathname,
-  isLocked,
-  upgradeHref,
+  onNavigate,
   nested = false,
 }: {
   leaf: NavLeaf;
   pathname: string;
-  isLocked: (p?: boolean) => boolean;
-  upgradeHref: string;
+  onNavigate?: () => void;
   nested?: boolean;
 }) {
-  const locked = isLocked(leaf.premium);
   const active = pathname === leaf.href;
   const Icon = leaf.icon;
 
-  // Locked premium items send the user to the upgrade page instead.
-  const href = locked ? `${upgradeHref}?feature=${leaf.id}` : leaf.href;
-
   return (
     <Link
-      href={href}
+      href={leaf.href}
       className={[
         styles.item,
         nested ? styles.itemNested : "",
         active ? styles.itemActive : "",
-        locked ? styles.itemLocked : "",
       ].join(" ")}
       aria-current={active ? "page" : undefined}
-      title={locked ? `${leaf.label} — upgrade to unlock` : leaf.label}
+      title={leaf.label}
+      onClick={onNavigate}
     >
       <span className={styles.itemIcon}>
         <Icon size={20} />
       </span>
       <span className={styles.itemLabel}>{leaf.label}</span>
       {leaf.badge && <span className={styles.badge}>{leaf.badge}</span>}
-      {locked && (
-        <span className={styles.lock} aria-label="Premium feature">
-          <LockIcon size={15} />
-        </span>
-      )}
     </Link>
-  );
-}
-
-/* ------------------------- Footer (upsell) ---------------------------- */
-
-function SubscriptionFooter({ user, upgradeHref }: { user: SidebarUser; upgradeHref: string }) {
-  if (user.isSubscribed) {
-    return (
-      <div className={styles.footer}>
-        <div className={styles.planPill}>{(user.plan ?? "pro").toUpperCase()} PLAN</div>
-      </div>
-    );
-  }
-  return (
-    <div className={styles.footer}>
-      <Link href={upgradeHref} className={styles.upgradeBtn}>
-        Unlock Premium
-      </Link>
-    </div>
   );
 }

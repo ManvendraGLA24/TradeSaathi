@@ -9,11 +9,15 @@
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .content { flex: 1; min-width: 0; }
 
+@media (max-width: 900px) {
+  .content { padding-bottom: 82px; }
+}
+
 /* ----- shared tokens for feature pages ----- */
 .page {
   --bg:#060910; --panel:#0a0e17; --raise:#111828; --border:rgba(255,255,255,.07);
   --text:#d7dce8; --muted:#828ba3; --accent:#2dd4e8; --accent2:#4f8cff;
-  --up:#16c784; --down:#ea3943; --lock:#6b7488; --radius:12px;
+  --up:#16c784; --down:#ea3943; --radius:12px;
   color: var(--text);
   font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
   padding: 22px 26px 40px;
@@ -45,6 +49,3 @@
 .sectionTitle { display:flex; align-items:center; gap:8px; font-size:15px; font-weight:800; color:#fff; margin: 4px 0 14px; }
 .sectionTitle .dot { width:8px;height:8px;border-radius:50%;background:var(--accent); }
 .sectionTitle small { color:var(--muted); font-weight:600; font-size:12px; }
-
-/* Lock chip on cards */
-.lockChip { position:absolute; top:14px; right:14px; color:var(--lock); display:flex; }

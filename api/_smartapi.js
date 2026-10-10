@@ -62,11 +62,14 @@ const rawPost = (path, headers, body) => rawReq('POST', path, headers, body);
 let session = null; // { jwt, at }
 async function getSession() {
   if (session && Date.now() - session.at < 6 * 3600 * 1000) return session;
+  const required = ['SMARTAPI_API_KEY', 'SMARTAPI_CLIENT_CODE', 'SMARTAPI_MPIN', 'SMARTAPI_TOTP_SECRET'];
+  const missing = required.filter((key) => !process.env[key]);
+  if (missing.length) throw new Error(`Missing SmartAPI server configuration: ${missing.join(', ')}`);
   const r = await rawPost('/rest/auth/angelbroking/user/v1/loginByPassword', baseHeaders(), {
     clientcode: process.env.SMARTAPI_CLIENT_CODE, password: process.env.SMARTAPI_MPIN, totp: totp(process.env.SMARTAPI_TOTP_SECRET),
   });
   if (!r?.data?.jwtToken) throw new Error('SmartAPI login failed: ' + (r.message || '') + ' ' + (r.errorcode || ''));
-  session = { jwt: r.data.jwtToken, at: Date.now() };
+  session = { jwt: r.data.jwtToken, feedToken: r.data.feedToken, at: Date.now() };
   return session;
 }
 async function authed(path, body) {
@@ -76,11 +79,20 @@ async function authed(path, body) {
     session = null; s = await getSession();
     j = await rawPost(path, { ...baseHeaders(), Authorization: 'Bearer ' + s.jwt }, body);
   }
+  if (j?.status === false) throw new Error(`SmartAPI request failed: ${j.message || j.errorcode || 'unknown error'}`);
   return j;
 }
 async function authedGet(path) {
   const s = await getSession();
-  return rawReq('GET', path, { ...baseHeaders(), Authorization: 'Bearer ' + s.jwt });
+  const j = await rawReq('GET', path, { ...baseHeaders(), Authorization: 'Bearer ' + s.jwt });
+  if (j?.status === false) throw new Error(`SmartAPI request failed: ${j.message || j.errorcode || 'unknown error'}`);
+  return j;
+}
+
+export async function streamingCredentials() {
+  const current = await getSession();
+  if (!current.feedToken) throw new Error('SmartAPI login did not return a feed token.');
+  return { jwt: current.jwt, feedToken: current.feedToken };
 }
 
 // Holdings + positions + today's trades, with a computed P&L summary (Trading Journal).

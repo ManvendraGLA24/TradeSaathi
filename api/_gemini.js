@@ -8,20 +8,41 @@ export async function gemini(prompt, { search = false } = {}) {
   if (!key) throw new Error('GEMINI_API_KEY not set');
   const body = { contents: [{ parts: [{ text: prompt }] }] };
   if (search) body.tools = [{ google_search: {} }];
+  let failure = 'no response';
   for (const model of MODELS) {
     for (let i = 0; i < 2; i++) {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      }).catch(() => null);
-      if (!res) break;
-      if (res.status === 503 || res.status === 429) { await sleep(900); continue; }
+      let res;
+      try {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(15000),
+        });
+      } catch (error) {
+        failure = error.name === 'TimeoutError' ? 'request timed out' : 'network request failed';
+        break;
+      }
       const j = await res.json().catch(() => null);
-      const text = (j?.candidates?.[0]?.content?.parts || []).map((p) => p.text).filter(Boolean).join('');
-      if (res.status === 200 && text) return text;
+      if (res.status === 503 || res.status === 429) {
+        failure = `HTTP ${res.status}`;
+        await sleep(900);
+        continue;
+      }
+      const candidate = j?.candidates?.[0];
+      const text = (candidate?.content?.parts || []).map((p) => p.text).filter(Boolean).join('');
+      if (res.ok && text) {
+        const sources = (candidate.groundingMetadata?.groundingChunks || [])
+          .map((chunk) => chunk.web)
+          .filter((web) => web?.uri)
+          .map((web) => ({ title: web.title || web.uri, url: web.uri }));
+        return { text, sources };
+      }
+      failure = j?.error?.message || `HTTP ${res.status}`;
       break; // non-retryable error for this model -> try next model
     }
   }
-  throw new Error('Gemini request failed');
+  throw new Error(`Gemini request failed: ${failure}`);
 }
 
 export function parseJSON(text) {

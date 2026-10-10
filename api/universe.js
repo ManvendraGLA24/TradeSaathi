@@ -2,8 +2,10 @@
 // Powers Market Pulse / Gainers / Losers / High Power / Sector Scope on the client.
 import { NSE_TOKENS } from './_tokens.js';
 import { quoteTokens } from './_smartapi.js';
+import { requireSession } from './_auth.js';
 
 export default async function handler(req, res) {
+  if (!requireSession(req, res)) return;
   try {
     const items = Object.entries(NSE_TOKENS).map(([symbol, token]) => ({ symbol, token }));
     const rows = await quoteTokens('NSE', items);
@@ -11,11 +13,10 @@ export default async function handler(req, res) {
     const maxVol = Math.max(1, ...rows.map((r) => r.volume || 0));
     const data = rows.map((r) => ({
       ...r,
-      rfac: r.pct != null ? +(Math.abs(r.pct) * (0.5 + 0.5 * ((r.volume || 0) / maxVol)) * 100).toFixed(2) : 0,
-      turnover: r.ltp && r.volume ? +((r.ltp * r.volume) / 1e7).toFixed(2) : 0, // ₹ Cr
-      diff: r.ltp != null && r.close != null ? +(r.ltp - r.close).toFixed(2) : 0,
+      rfac: r.pct != null && r.volume != null ? +(Math.abs(r.pct) * (0.5 + 0.5 * (r.volume / maxVol)) * 100).toFixed(2) : null,
+      turnover: r.ltp != null && r.volume != null ? +((r.ltp * r.volume) / 1e7).toFixed(2) : null, // ₹ Cr
+      diff: r.ltp != null && r.close != null ? +(r.ltp - r.close).toFixed(2) : null,
     }));
-    res.setHeader('Cache-Control', 's-maxage=5, stale-while-revalidate=15');
     res.status(200).json({ ts: Date.now(), data });
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });

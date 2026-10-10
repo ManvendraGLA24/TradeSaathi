@@ -49,6 +49,23 @@ export const IndexIcon: IconType = ({ size, className }) => (
   </svg>
 );
 
+export const ToolsIcon: IconType = ({ size, className }) => (
+  <svg {...base(size)} className={className}>
+    <rect x="4" y="4" width="6" height="6" rx="1.5" />
+    <rect x="14" y="4" width="6" height="6" rx="1.5" />
+    <rect x="4" y="14" width="6" height="6" rx="1.5" />
+    <rect x="14" y="14" width="6" height="6" rx="1.5" />
+  </svg>
+);
+
+export const MoreIcon: IconType = ({ size, className }) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="5" cy="12" r="1" />
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="19" cy="12" r="1" />
+  </svg>
+);
+
 export const PulseIcon: IconType = ({ size, className }) => (
   <svg {...base(size)} className={className}>
     <path d="M3 12h4l2-6 4 12 2-6h6" />
@@ -176,13 +193,6 @@ export const SettingsIcon: IconType = ({ size, className }) => (
 export const ChevronIcon: IconType = ({ size, className }) => (
   <svg {...base(size)} className={className}>
     <path d="M6 9l6 6 6-6" />
-  </svg>
-);
-
-export const LockIcon: IconType = ({ size, className }) => (
-  <svg {...base(size)} className={className}>
-    <rect x="5" y="11" width="14" height="10" rx="2" />
-    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
   </svg>
 );
 

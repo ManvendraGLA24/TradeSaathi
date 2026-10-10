@@ -5,6 +5,11 @@
   "type": "module",
   "description": "TradeSaathi dashboard — static preview + Angel One SmartAPI serverless functions",
   "scripts": {
-    "dev": "node dev-server.js"
+    "dev": "node dev-server.js",
+    "start": "node dev-server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
   }
 }

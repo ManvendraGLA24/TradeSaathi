@@ -5,6 +5,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { attachMarketStream } from './api/_marketStream.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -29,7 +30,7 @@ async function runApi(name, req, res) {
   await handlers[name](req, res);
 }
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname.startsWith('/api/')) return await runApi(url.pathname.slice(5).replace(/\/$/, ''), req, res);
@@ -41,4 +42,6 @@ http.createServer(async (req, res) => {
   } catch (e) {
     res.statusCode = 500; res.end(String(e?.message || e));
   }
-}).listen(PORT, () => console.log(`TradeSaathi dev server → http://localhost:${PORT}  (live /api with .env.local)`));
+});
+attachMarketStream(server);
+server.listen(PORT, () => console.log(`TradeSaathi server → http://localhost:${PORT}  (private /api + Angel One stream)`));

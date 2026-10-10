@@ -1,0 +1,91 @@
+.page { max-width: 1440px; }
+
+.intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -5px 0 18px;
+}
+
+.intro p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.previewTag, .tag, .blockCount {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid rgba(45, 212, 232, .2);
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(45, 212, 232, .07);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .45px;
+}
+
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.metric { display: flex; flex-direction: column; gap: 7px; padding: 15px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.metric span, .metric small { color: var(--muted); font-size: 11px; font-weight: 700; }
+.metric strong { color: #fff; font-size: 20px; font-weight: 800; }
+
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.filter { display: flex; align-items: center; gap: 8px; min-width: 145px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); }
+.filter > span { color: var(--muted); font-size: 11px; font-weight: 700; }
+.filter select, .search input { min-width: 0; width: 100%; color: var(--text); border: 0; outline: 0; background: transparent; font: inherit; font-size: 12px; }
+.filter select option { color: var(--text); background: var(--panel); }
+.search { display: flex; align-items: center; gap: 7px; margin-left: auto; min-width: min(240px, 40%); padding: 9px 12px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); background: var(--panel); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.card { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 15px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.cardTop { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cardIcon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; color: var(--accent); background: rgba(45,212,232,.1); font-size: 14px; font-weight: 800; }
+.tag { padding: 4px 7px; font-size: 9px; }
+.card h3 { margin: 2px 0 0; color: #fff; font-size: 14px; font-weight: 800; }
+.card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.cardValue { margin-top: auto; font-size: 16px; font-weight: 800; }
+.card small { font-size: 11px; font-weight: 700; }
+
+.block, .formPanel { margin: 0 0 16px; padding: 15px; border: 1px solid var(--border); border-radius: 13px; background: var(--panel); }
+.blockHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.blockHeader h2 { margin: 0; color: #fff; font-size: 15px; font-weight: 800; }
+.blockHeader p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.blockCount { border-color: var(--border); color: var(--muted); background: var(--raise); text-transform: uppercase; }
+
+.tableWrap { width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.tableWrap table { width: 100%; min-width: 560px; border-collapse: collapse; }
+.tableWrap th { padding: 11px 13px; color: var(--accent); background: var(--raise); text-align: left; font-size: 10px; letter-spacing: .5px; white-space: nowrap; }
+.tableWrap td { padding: 12px 13px; border-top: 1px solid var(--border); color: var(--text); font-size: 12px; white-space: nowrap; }
+.tableWrap tbody tr:hover { background: rgba(255,255,255,.025); }
+.tableWrap td:first-child { color: #fff; font-weight: 750; }
+.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+
+.chart { min-height: 180px; display: flex; align-items: stretch; justify-content: space-around; gap: 12px; padding: 13px 5px 0; border-bottom: 1px solid var(--border); background: repeating-linear-gradient(to bottom, transparent 0, transparent 43px, rgba(255,255,255,.045) 44px); }
+.barColumn { min-width: 35px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; }
+.barColumn strong { font-size: 10px; }
+.barTrack { width: min(38px, 70%); height: 102px; display: flex; align-items: flex-end; justify-content: center; }
+.bar { width: 100%; min-height: 8px; border-radius: 5px 5px 0 0; background: linear-gradient(0deg, rgba(22,199,132,.3), #16c784); }
+.barDown { background: linear-gradient(0deg, rgba(234,57,67,.3), #ea3943); }
+.barColumn small { min-height: 20px; color: var(--muted); font-size: 10px; text-align: center; }
+
+.up { color: var(--up) !important; }
+.down { color: var(--down) !important; }
+.accent { color: var(--accent) !important; }
+
+.formPanel { max-width: 850px; }
+.formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.formGrid label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.formGrid input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; outline: 0; color: var(--text); background: var(--raise); font: inherit; font-weight: 500; }
+.formGrid input:focus { border-color: rgba(45,212,232,.5); }
+.action { margin-top: 14px; padding: 9px 14px; border: 0; border-radius: 9px; color: #04232b; background: linear-gradient(90deg,var(--accent),var(--accent2)); font: inherit; font-size: 12px; font-weight: 800; }
+.disclaimer { margin: 10px 0 0; color: var(--muted); font-size: 10px; }
+
+@media (max-width: 700px) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .toolbar { flex-wrap: wrap; }
+  .filter { flex: 1 1 140px; }
+  .search { flex: 1 1 100%; margin-left: 0; }
+}
+
+@media (max-width: 420px) {
+  .intro { align-items: flex-start; flex-direction: column; }
+  .formGrid { grid-template-columns: 1fr; }
+  .block, .formPanel { padding: 12px; }
+}

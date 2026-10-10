@@ -88,16 +88,8 @@ export default function HomePage() {
       <div className={s.grid}>
         {TOOLS.map((t) => {
           const Icon = t.icon;
-          const locked = !user.isSubscribed;
           return (
-            <Link key={t.href} href={locked ? `/pricing?feature=${t.href.slice(1)}` : t.href} className={s.card}>
-              {locked && (
-                <span className={shell.lockChip}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" />
-                  </svg>
-                </span>
-              )}
+            <Link key={t.href} href={t.href} className={s.card}>
               <div className={s.cardIcon} style={{ background: `${t.color}1f`, color: t.color }}>
                 <Icon size={24} />
               </div>

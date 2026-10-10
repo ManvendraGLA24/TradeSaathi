@@ -9,7 +9,7 @@
  */
 
 import { useState } from "react";
-import { Sidebar, Topbar, useSubscription } from "@/components/sidebar";
+import { MobileNav, Sidebar, Topbar, useSubscription } from "@/components/sidebar";
 import shell from "@/components/ui/shell.module.css";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -18,11 +18,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className={shell.root}>
-      <Sidebar user={user} open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
       <div className={shell.main}>
         <Topbar user={user} notificationCount={3} onToggleMenu={() => setMenuOpen(true)} />
         <main className={shell.content}>{children}</main>
       </div>
+      <MobileNav />
     </div>
   );
 }

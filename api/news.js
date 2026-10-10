@@ -1,4 +1,5 @@
 // GET /api/news -> latest Indian market news from a public RSS feed (free, no key).
+import { requireSession } from './_auth.js';
 const FEED = 'https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms';
 const UA = 'Mozilla/5.0 (compatible; TradeSaathi/1.0)';
 
@@ -13,6 +14,7 @@ function rel(dateStr) {
 }
 
 export default async function handler(req, res) {
+  if (!requireSession(req, res)) return;
   try {
     const r = await fetch(FEED, { headers: { 'User-Agent': UA, 'Accept': 'application/rss+xml, application/xml, text/xml' }, signal: AbortSignal.timeout(8000) });
     const xml = await r.text();
@@ -23,7 +25,6 @@ export default async function handler(req, res) {
       source: 'Economic Times',
       time: rel(tag(block, 'pubDate')),
     })).filter((x) => x.title);
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=900');
     res.status(200).json({ ts: Date.now(), data: items });
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });

@@ -11,9 +11,11 @@ const OPT = /^NIFTY(\d{2}[A-Z]{3}\d{2})(\d+)(CE|PE)$/; // e.g. NIFTY13OCT2622500
 let master = null, masterAt = 0;
 async function niftyOptions() {
   if (master && Date.now() - masterAt < 6 * 3600 * 1000) return master;
-  master = (await searchScrip('NFO', 'NIFTY'))
+  const options = (await searchScrip('NFO', 'NIFTY'))
     .map((x) => { const m = x.tradingsymbol.match(OPT); return m && { token: x.symboltoken, symbol: x.tradingsymbol, expiry: m[1], strike: +m[2], type: m[3] }; })
     .filter(Boolean);
+  if (!options.length) throw new Error('SmartAPI returned no NIFTY option contracts.');
+  master = options;
   masterAt = Date.now();
   return master;
 }
@@ -21,11 +23,15 @@ async function niftyOptions() {
 // Nearest expiry, spot/ATM, and the CE+PE contracts within ±range of ATM.
 async function contracts(range) {
   const opts = await niftyOptions();
+  if (!opts.length) throw new Error('No NIFTY option contracts are available.');
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const expiry = [...new Set(opts.map((o) => o.expiry))].filter((e) => parseExp(e) >= today).sort((a, b) => parseExp(a) - parseExp(b))[0];
+  if (!expiry) throw new Error('No unexpired NIFTY option contracts are available.');
   const [idx] = await quoteTokens('NSE', [{ symbol: 'NIFTY', token: '99926000' }]);
+  if (idx?.ltp == null) throw new Error('NIFTY index quote is unavailable for option analysis.');
   const spot = idx.ltp, atm = Math.round(spot / 50) * 50;
   const picks = opts.filter((o) => o.expiry === expiry && Math.abs(o.strike - atm) <= range);
+  if (!picks.length) throw new Error('No NIFTY option contracts are available around the current spot price.');
   return { expiry, spot: +spot.toFixed(2), atm, picks };
 }
 
@@ -33,8 +39,10 @@ async function contracts(range) {
 function byStrike(picks, value) {
   const rows = {};
   for (const o of picks) {
+    const amount = value(o);
+    if (amount == null) continue;
     const r = (rows[o.strike] ||= { strike: o.strike, ce: 0, pe: 0 });
-    r[o.type === 'CE' ? 'ce' : 'pe'] = value(o) || 0;
+    r[o.type === 'CE' ? 'ce' : 'pe'] = amount;
   }
   return Object.values(rows).sort((a, b) => b.strike - a.strike);
 }
@@ -46,7 +54,8 @@ export async function optionChain(range = 600) {
   for (let i = 0; i < picks.length; i += 45) (await quoteTokens('NFO', picks.slice(i, i + 45))).forEach((r) => { q[r.symbol] = r; });
   const strikes = byStrike(picks, (o) => q[o.symbol]?.oi).map((r) => ({ strike: r.strike, ceOI: r.ce, peOI: r.pe }));
   const totCE = strikes.reduce((s, r) => s + r.ceOI, 0), totPE = strikes.reduce((s, r) => s + r.peOI, 0);
-  return { spot, atm, expiry, strikes, totCE, totPE, pcr: totCE ? +(totPE / totCE).toFixed(2) : 0 };
+  if (!strikes.length || totCE + totPE <= 0) throw new Error('SmartAPI returned no usable NIFTY option open-interest data.');
+  return { spot, atm, expiry, strikes, totCE, totPE, pcr: totCE ? +(totPE / totCE).toFixed(2) : null };
 }
 
 // OI change per strike between two times ("HH:MM") of the latest session.
@@ -76,6 +85,7 @@ export async function oiChange(from = '09:15', to = '15:30', range = 400) {
     ceChg: strikes.reduce((s, r) => s + r.ceChg, 0), peChg: strikes.reduce((s, r) => s + r.peChg, 0),
     totCE: totOI.reduce((s, r) => s + r.ce, 0), totPE: totOI.reduce((s, r) => s + r.pe, 0),
   };
+  if (!strikes.length || data.totCE + data.totPE <= 0) throw new Error('SmartAPI returned no usable NIFTY option OI history for this session.');
   cache.set(key, { at: Date.now(), data });
   return data;
 }
